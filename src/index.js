@@ -1,5 +1,6 @@
 'use strict';
 const { Telegraf } = require('telegraf');
+const express = require('express');
 const cron = require('node-cron');
 const env = require('./config/env');
 
@@ -20,6 +21,20 @@ const battleManager = createBattleManager(bot);
 
 bot.use(callbackGuard);
 bot.use(ensureContext);
+const app = express();
+const PORT = 3000;
+
+// صفحه اصلی
+app.get('/', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'telegram-bot',
+    message: 'ErisBot server is running'
+  });
+});
+const server = app.listen(PORT, () => {
+  console.log(`🌐 Health server running on port ${PORT}`);
+});
 
 // Commands
 require('./bot/commands/profile').register(bot);
