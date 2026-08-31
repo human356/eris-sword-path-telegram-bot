@@ -9,55 +9,109 @@ const C = require('../../config/constants');
 const FIGHT_COOLDOWN_ACTION = 'fight_request';
 
 async function resolveOpponent(ctx) {
-  if (ctx.message.reply_to_message && ctx.message.reply_to_message.from && !ctx.message.reply_to_message.from.is_bot) {
+  if (
+    ctx.message.reply_to_message &&
+    ctx.message.reply_to_message.from &&
+    !ctx.message.reply_to_message.from.is_bot
+  ) {
     const from = ctx.message.reply_to_message.from;
-    return { telegramId: from.id, displayName: displayNameOf(from), username: from.username };
+    return {
+      telegramId: from.id,
+      displayName: displayNameOf(from),
+      username: from.username
+    };
   }
 
   const text = ctx.message.text || '';
   const match = text.match(/@(\w{4,})/);
+
   if (match) {
     const username = match[1];
-    const { rows } = await query('SELECT * FROM users WHERE LOWER(username) = LOWER($1)', [username]);
+    const { rows } = await query(
+      'SELECT * FROM users WHERE LOWER(username) = LOWER($1)',
+      [username]
+    );
+
     if (rows[0]) {
-      return { telegramId: rows[0].telegram_id, displayName: rows[0].display_name, username: rows[0].username };
+      return {
+        telegramId: rows[0].telegram_id,
+        displayName: rows[0].display_name,
+        username: rows[0].username
+      };
     }
   }
+
   return null;
 }
 
 function register(bot, battleManager) {
   bot.command('fight', async (ctx) => {
     if (!ctx.state.isGroup) return;
+
     const { user, groupId } = ctx.state;
 
-    const remaining = await cooldownModel.getRemainingCooldown(user.telegramId, groupId, FIGHT_COOLDOWN_ACTION);
+    const remaining = await cooldownModel.getRemainingCooldown(
+      user.telegramId,
+      groupId,
+      FIGHT_COOLDOWN_ACTION
+    );
+
     if (remaining > 0) {
-      return ctx.reply(`⏱ Slow down, swordsman. Try again in ${remaining}s.`);
+      return ctx.reply(
+        `⏱ کمی آرام‌تر، شمشیرزن! ${remaining} ثانیه دیگر دوباره امتحان کن.`
+      );
     }
 
     const opponent = await resolveOpponent(ctx);
+
     if (!opponent) {
-      return ctx.reply('⚔️ Reply to someone\'s message with /fight, or use /fight @username.');
-    }
-    if (opponent.telegramId === user.telegramId) {
-      return ctx.reply('⚔️ You cannot challenge yourself, hero.');
+      return ctx.reply(
+        '⚔️ به پیام یک بازیکن با /fight پاسخ دهید، یا از /fight @username استفاده کنید.'
+      );
     }
 
-    const existingChallenger = await battleModel.getActiveBattleForUser(groupId, user.telegramId);
-    if (existingChallenger) {
-      return ctx.reply('⚔️ You already have an ongoing duel. Finish it first!');
+    if (opponent.telegramId === user.telegramId) {
+      return ctx.reply(
+        '⚔️ قهرمان، نمی‌توانی خودت را به مبارزه دعوت کنی!'
+      );
     }
-    const existingOpponent = await battleModel.getActiveBattleForUser(groupId, opponent.telegramId);
+
+    const existingChallenger =
+      await battleModel.getActiveBattleForUser(
+        groupId,
+        user.telegramId
+      );
+
+    if (existingChallenger) {
+      return ctx.reply(
+        '⚔️ شما در حال حاضر یک دوئل فعال دارید. ابتدا آن را به پایان برسانید!'
+      );
+    }
+
+    const existingOpponent =
+      await battleModel.getActiveBattleForUser(
+        groupId,
+        opponent.telegramId
+      );
+
     if (existingOpponent) {
-      return ctx.reply('⚔️ That fighter is already in a duel.');
+      return ctx.reply(
+        '⚔️ این مبارز در حال حاضر در یک دوئل است.'
+      );
     }
 
     await userModel.upsertUser({
-      telegramId: opponent.telegramId, username: opponent.username, displayName: opponent.displayName,
+      telegramId: opponent.telegramId,
+      username: opponent.username,
+      displayName: opponent.displayName,
     });
 
-    await cooldownModel.setCooldown(user.telegramId, groupId, FIGHT_COOLDOWN_ACTION, C.FIGHT_COOLDOWN_SECONDS);
+    await cooldownModel.setCooldown(
+      user.telegramId,
+      groupId,
+      FIGHT_COOLDOWN_ACTION,
+      C.FIGHT_COOLDOWN_SECONDS
+    );
 
     await battleManager.startChallenge({
       groupId,
@@ -69,7 +123,10 @@ function register(bot, battleManager) {
 
   bot.action('menu:fight', async (ctx) => {
     await ctx.answerCbQuery();
-    await ctx.reply('⚔️ Reply to a player\'s message with /fight, or type /fight @username to challenge them.');
+
+    await ctx.reply(
+      '⚔️ برای دعوت یک بازیکن، به پیام او با /fight پاسخ دهید، یا برای دعوت مستقیم از /fight @username استفاده کنید.'
+    );
   });
 }
 

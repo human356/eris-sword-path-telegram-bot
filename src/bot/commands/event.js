@@ -3,17 +3,23 @@ const eventModel = require('../../database/models/eventModel');
 const erisEventService = require('../../events/erisEventService');
 const { progressBar } = require('../../utils/format');
 const { erisEventKeyboard } = require('../keyboards');
-
 function register(bot) {
   bot.command('event', async (ctx) => {
     if (!ctx.state.isGroup) return;
+
     const event = await eventModel.getActiveEvent(ctx.state.groupId);
-    if (!event) return ctx.reply('😐 No Eris Challenge is active right now. Keep fighting to raise the Rage meter!');
+
+    if (!event) {
+      return ctx.reply(
+        '😐 در حال حاضر هیچ چالش اریس فعالی وجود ندارد. به مبارزه ادامه دهید تا نوار خشم افزایش پیدا کند!'
+      );
+    }
 
     const remainingMs = new Date(event.ends_at).getTime() - Date.now();
     const remainingMin = Math.max(0, Math.ceil(remainingMs / 60000));
+
     await ctx.reply(
-      `⚔️ <b>ERIS CHALLENGE — ACTIVE</b>\n\n⏱ ${remainingMin} minute(s) remaining.\n\nHit the button below for your one attempt!`,
+      `⚔️ <b>چالش اریس — فعال</b>\n\n⏱ ${remainingMin} دقیقه باقی‌مانده.\n\nبرای استفاده از تنها فرصت خود، دکمهٔ زیر را بزنید!`,
       { parse_mode: 'HTML', ...erisEventKeyboard(event.id) }
     );
   });
@@ -22,17 +28,28 @@ function register(bot) {
     const eventId = Number(ctx.match[1]);
     const { groupId, user } = ctx.state;
 
-    const result = await erisEventService.attack(groupId, user.telegramId);
+    const result = await erisEventService.attack(
+      groupId,
+      user.telegramId
+    );
+
     if (!result.success) {
       const messages = {
-        NO_EVENT: 'There is no active Eris Challenge right now.',
-        EXPIRED: 'The challenge just ended!',
-        ALREADY_ATTEMPTED: 'You already used your attempt for this challenge!',
+        NO_EVENT: 'در حال حاضر هیچ چالش اریس فعالی وجود ندارد.',
+        EXPIRED: 'چالش همین الان به پایان رسید!',
+        ALREADY_ATTEMPTED: 'شما قبلاً فرصت خود را در این چالش استفاده کرده‌اید.',
       };
-      return ctx.answerCbQuery(messages[result.reason] || 'Could not attack right now.', { show_alert: true });
+
+      return ctx.answerCbQuery(
+        messages[result.reason] || 'در حال حاضر امکان حمله وجود ندارد.',
+        { show_alert: true }
+      );
     }
 
-    await ctx.answerCbQuery(`You dealt ${result.damage} damage to Eris!`, { show_alert: true });
+    await ctx.answerCbQuery(
+      `شما ${result.damage} آسیب به اریس وارد کردید!`,
+      { show_alert: true }
+    );
   });
 }
 

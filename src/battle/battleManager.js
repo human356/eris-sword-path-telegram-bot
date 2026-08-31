@@ -65,12 +65,12 @@ function createBattleManager(bot) {
       challengerStats,
       opponentStats,
     });
-
+    
     const text =
-      `⚔️ <b>DUEL CHALLENGE</b>\n\n` +
-      `${escapeHtml(challengerUser.displayName)} challenged ${escapeHtml(opponentUser.displayName)}!\n\n` +
-      `${escapeHtml(challengerUser.displayName)}:\n⚔️ ${rankLabel(challengerStats.sword_rank)}\n❤️ ${challengerStats.hp} HP\n⚡ ${challengerStats.stamina} Stamina\n\n` +
-      `${escapeHtml(opponentUser.displayName)}:\n⚔️ ${rankLabel(opponentStats.sword_rank)}\n❤️ ${opponentStats.hp} HP\n⚡ ${opponentStats.stamina} Stamina`;
+    `⚔️ <b>چالش دوئل</b>\n\n` +
+    `${escapeHtml(challengerUser.displayName)}، ${escapeHtml(opponentUser.displayName)} را به مبارزه دعوت کرد!\n\n` +
+    `${escapeHtml(challengerUser.displayName)}:\n⚔️ ${rankLabel(challengerStats.sword_rank)}\n❤️ ${challengerStats.hp} سلامتی\n⚡ ${challengerStats.stamina} استقامت\n\n` +
+    `${escapeHtml(opponentUser.displayName)}:\n⚔️ ${rankLabel(opponentStats.sword_rank)}\n❤️ ${opponentStats.hp} سلامتی\n⚡ ${opponentStats.stamina} استقامت`;
 
     const sent = await bot.telegram.sendMessage(chatId, text, {
       parse_mode: 'HTML',
@@ -92,7 +92,7 @@ function createBattleManager(bot) {
     );
     if (battle) {
       await bot.telegram.editMessageText(chatId, battle.chat_message_id, undefined,
-        '⌛ The challenge expired. Nobody accepted in time.');
+       '⌛ زمان چالش به پایان رسید. کسی به‌موقع قبول نکرد.');
     }
     clearTimer(challengeTimers, battleId);
   }
@@ -119,7 +119,7 @@ function createBattleManager(bot) {
     if (battle) {
       await bot.telegram.editMessageText(
         chatId, battle.chat_message_id, undefined,
-        `❌ Challenge declined.\n\nEris: "${erisVoice.say('challenge_declined')}"`
+       `❌ چالش رد شد.\n\nEris: "${erisVoice.say('challenge_declined')}"`
       );
     }
     return battle;
@@ -130,11 +130,11 @@ function createBattleManager(bot) {
     const opponent = await userModel.getUser(battle.opponent_id);
 
     const text =
-      `⚔️ <b>DUEL — ROUND ${battle.round_number}</b>\n\n` +
-      `👤 ${escapeHtml(challenger.display_name)}\n❤️ ${battle.challenger_hp} / 100  ⚡ ${battle.challenger_stamina} / 100\n\n` +
-      `👤 ${escapeHtml(opponent.display_name)}\n❤️ ${battle.opponent_hp} / 100  ⚡ ${battle.opponent_stamina} / 100\n\n` +
-      `Choose your move: (⏱ ${C.ROUND_TIMEOUT_SECONDS}s)`;
-
+    `⚔️ <b>دوئل — راند ${battle.round_number}</b>\n\n` +
+    `👤 ${escapeHtml(challenger.display_name)}\n❤️ ${battle.challenger_hp} / 100  ⚡ ${battle.challenger_stamina} / 100\n\n` +
+    `👤 ${escapeHtml(opponent.display_name)}\n❤️ ${battle.opponent_hp} / 100  ⚡ ${battle.opponent_stamina} / 100\n\n` +
+    `حرکت خود را انتخاب کنید: (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)`;
+    
     const message = await bot.telegram.editMessageText(
       chatId, battle.chat_message_id, undefined, text,
       { parse_mode: 'HTML', ...moveKeyboard(battle.id) }
@@ -226,14 +226,14 @@ function createBattleManager(bot) {
       const result = engine.resolveRound(cMove, cStats, engine.MOVES.GUARD, oStats);
       aDamageDealt = result.aDamageDealt;
       log = result.log;
-      log.push('Opponent was too exhausted to react!');
+      log.push('حریف آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
     } else if (cAfk && !oAfk) {
       const result = engine.resolveRound(engine.MOVES.GUARD, cStats, oMove, oStats);
       bDamageDealt = result.bDamageDealt;
       log = result.log;
-      log.push('Challenger was too exhausted to react!');
+      log.push('چالشگر آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
     } else {
-      log.push('Both fighters staggered — no clean hits this round.');
+      log.push('هر دو مبارز تلوتلو خوردند — این راند ضربهٔ مؤثری وارد نشد.');
     }
 
     const cCostMove = cMove || engine.MOVES.GUARD;
@@ -324,11 +324,11 @@ function createBattleManager(bot) {
 
     await groupModel.incrementGroupCounters(battle.group_id, { duels: 1 });
 
-    let resultText = `🏆 <b>DUEL FINISHED</b>\n\n`;
+    let resultText = `🏆 <b>دوئل به پایان رسید</b>\n\n`;
 
     if (isDraw) {
-      resultText += `⚔️ It's a draw between ${escapeHtml(challenger.display_name)} and ${escapeHtml(opponent.display_name)}!\n\n`;
-      resultText += `Eris: "Neither of you impressed me. Go train."`;
+      resultText += `⚔️ دوئل بین ${escapeHtml(challenger.display_name)} و ${escapeHtml(opponent.display_name)} مساوی شد!\n\n`;
+      resultText += `Eris: "هیچ‌کدامتان تحت تأثیرم قرار ندادید. بروید تمرین کنید."`;
       await battleModel.updateRoundState(battle.id, {
         roundNumber: battle.round_number, challengerHp: battle.challenger_hp, challengerStamina: battle.challenger_stamina,
         opponentHp: battle.opponent_hp, opponentStamina: battle.opponent_stamina,
@@ -404,18 +404,17 @@ function createBattleManager(bot) {
       await dailyChallengeService.onDuelWin(winnerUser.telegram_id, battle.group_id, { beatHigherRated: isUpset });
 
       resultText +=
-        (forfeited
-          ? `⚔️ ${escapeHtml(winnerUser.display_name)} wins — ${escapeHtml(loserUser.display_name)} forfeited (AFK)!\n\n`
-          : `⚔️ ${escapeHtml(winnerUser.display_name)} defeated ${escapeHtml(loserUser.display_name)}!\n\n`) +
-        `${escapeHtml(winnerUser.display_name)}:\n❤️ ${winnerHp} HP remaining\n\n` +
-        `${escapeHtml(loserUser.display_name)}:\n❤️ 0 HP\n\n` +
-        `Rewards:\n⭐ +${num(xpGain)} XP\n🪙 +${num(coinGain)} Coins\n🏆 +${num(scaledRatingGain)} Rating\n🔥 Eris Respect +${num(respectGain)}\n\n` +
-        `Win Streak:\n🔥 ${streakResult.currentStreak}\n\n` +
-        `${escapeHtml(loserUser.display_name)}:\n⭐ +${num(loserXp2Gain)} XP\n🪙 +${num(loserCoinGain)} Coins\nRating:\n-${num(scaledRatingLoss)}\n\n` +
-        `Eris:\n"${erisVoice.say(streakResult.currentStreak >= 3 ? 'streak' : 'duel_win')}"`;
-
+      (forfeited
+        ? `⚔️ ${escapeHtml(winnerUser.displayName)} پیروز شد — ${escapeHtml(loserUser.displayName)} به‌دلیل عدم حضور تسلیم شد!\n\n`
+        : `⚔️ ${escapeHtml(winnerUser.displayName)}، ${escapeHtml(loserUser.displayName)} را شکست داد!\n\n`) +
+      `${escapeHtml(winnerUser.displayName)}:\n❤️ ${winnerHp} سلامتی باقی‌مانده\n\n` +
+      `${escapeHtml(loserUser.displayName)}:\n❤️ 0 سلامتی\n\n` +
+      `پاداش‌ها:\n⭐ +${num(xpGain)} تجربه\n🪙 +${num(coinGain)} سکه\n🏆 +${num(scaledRatingGain)} امتیاز\n🔥 احترام اریس +${num(respectGain)}\n\n` +
+      `رکورد پیروزی‌های متوالی:\n🔥 ${streakResult.currentStreak}\n\n` +
+      `${escapeHtml(loserUser.displayName)}:\n⭐ +${num(loserXp2Gain)} تجربه\n🪙 +${num(loserCoinGain)} سکه\nامتیاز:\n-${num(scaledRatingLoss)}\n\n` +
+      `Eris:\n"${erisVoice.say(streakResult.currentStreak >= 3 ? 'streak' : 'duel_win')}"`;
       if (rewardScale < 1) {
-        resultText += `\n\n<i>(Rewards reduced — you two have fought a lot recently.)</i>`;
+        resultText += `\n\n<i>(پاداش‌ها کاهش یافتند — شما دو نفر اخیراً بیش از حد با یکدیگر مبارزه کرده‌اید.)</i>`;
       }
     }
 
@@ -429,7 +428,7 @@ function createBattleManager(bot) {
       if (battle.chat_message_id) {
         await bot.telegram.editMessageText(
           battle.group_id, battle.chat_message_id, undefined,
-          '⌛ The challenge expired. Nobody accepted in time.'
+          '⌛ زمان چالش به پایان رسید. کسی به‌موقع قبول نکرد.'
         ).catch(() => {});
       }
     }

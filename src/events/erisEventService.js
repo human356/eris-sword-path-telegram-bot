@@ -56,21 +56,21 @@ async function resolveEvent(bot, event) {
     { xp: 500, coins: 800, respect: 20 },
     { xp: 350, coins: 500, respect: 12 },
     { xp: 200, coins: 300, respect: 8 },
-  ];
-  const medals = ['🥇', '🥈', '🥉'];
+  ];const medals = ['🥇', '🥈', '🥉'];
 
-  let text = `🏆 <b>ERIS EVENT RESULTS</b>\n\n`;
+  let text = `🏆 <b>نتایج رویداد اریس</b>\n\n`;
+  
   if (leaderboard.length === 0) {
-    text += `Nobody dared to fight Eris this time...\n\nEris: "Cowards. All of you."`;
+    text += `این بار هیچ‌کس جرئت مبارزه با اریس را نداشت...\n\nEris: "ترسوها. همه‌تان."`;
   } else {
     for (let i = 0; i < leaderboard.length; i += 1) {
       const row = leaderboard[i];
       const medal = medals[i] || `${i + 1}️⃣`;
-      text += `${medal} ${escapeHtml(row.display_name)} — ${num(row.damage)} Damage\n`;
+  
+      text += `${medal} ${escapeHtml(row.display_name)} — ${num(row.damage)} آسیب\n`;
     }
-
-    text += `\nRewards:\nXP\nCoins\nEris Respect\nSpecial Achievement (Top 3)\n\n`;
-
+  
+    text += `\nپاداش‌ها:\nXP\nسکه\nاحترام اریس\nدستاورد ویژه (۳ نفر برتر)\n\n`;
     for (let i = 0; i < Math.min(3, leaderboard.length); i += 1) {
       const row = leaderboard[i];
       const tier = rewardTiers[i];

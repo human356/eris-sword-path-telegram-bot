@@ -29,7 +29,7 @@ async function ensureContext(ctx, next) {
   if (!isGroup) {
     ctx.state.isGroup = false;
     if (ctx.updateType === 'message' && ctx.message && ctx.message.text && ctx.message.text.startsWith('/')) {
-      await ctx.reply('⚔️ Eris — Sword Path only works inside a Telegram group. Add me to a group and try again there!');
+      await ctx.reply('⚔️ اریس — Sword Path فقط داخل گروه تلگرام کار می‌کند. من را به یک گروه اضافه کنید و دوباره آنجا امتحان کنید!');
     }
     return;
   }

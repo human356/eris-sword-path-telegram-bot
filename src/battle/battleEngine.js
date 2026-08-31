@@ -76,7 +76,7 @@ function resolveRound(aMove, aStats, bMove, bStats) {
 
     const hits = rollChance(accuracy) && !dodged;
     if (!hits) {
-      log.push(`${who} missed${dodged ? ' — dodged!' : '!'}`);
+      log.push(`${who} حمله را از دست داد${dodged ? ' — جاخالی داده شد!' : '!'}`);
       return 0;
     }
 
@@ -88,12 +88,12 @@ function resolveRound(aMove, aStats, bMove, bStats) {
     const isCrit = rollChance(attacker.critChance);
     if (isCrit) {
       dmg = Math.round(dmg * C.CRIT_DAMAGE_MULTIPLIER);
-      log.push(`${who} landed a CRITICAL HIT!`);
+      log.push(`${who} یک ضربهٔ بحرانی وارد کرد!`);
     }
 
     if (defenderMove === MOVES.GUARD) {
       dmg = Math.round(dmg * (1 - C.GUARD_DAMAGE_REDUCTION));
-      log.push(`${who}'s attack was mostly blocked.`);
+      log.push(`حملهٔ ${who} تا حد زیادی دفاع شد.`);
     }
 
     return dmg;
@@ -107,7 +107,7 @@ function resolveRound(aMove, aStats, bMove, bStats) {
       const dmg = Math.round(
         baseDamage(opponent.attack, mover.defense, 1) * C.COUNTER_DAMAGE_MULTIPLIER
       );
-      log.push(`Countered! ${who === 'A' ? 'B' : 'A'} punishes the attack.`);
+      log.push(`ضدحمله! ${who === 'A' ? 'B' : 'A'} به حمله پاسخ می‌دهد.`);
       return { moverDeals: 0, counterDeals: dmg };
     }
     return null;
@@ -117,7 +117,7 @@ function resolveRound(aMove, aStats, bMove, bStats) {
   // wastes stamina with a small self-punish (spec §10: "in case of a mistake, takes damage").
   function counterWhiff(moverMove, opponentMove, who) {
     if (moverMove === MOVES.COUNTER && !isOffensive(opponentMove)) {
-      log.push(`${who}'s counter found nothing — left wide open.`);
+      log.push(`ضدحملهٔ ${who} بی‌نتیجه بود — کاملاً بی‌دفاع ماند.`);
       return baseDamage(4, 0, 1); // small punish damage
     }
     return 0;

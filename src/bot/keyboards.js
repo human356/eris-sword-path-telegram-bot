@@ -1,19 +1,27 @@
 'use strict';
 const { Markup } = require('telegraf');
-
 function mainMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback('⚔️ Fight', 'menu:fight'), Markup.button.callback('🏋️ Training', 'menu:training')],
-    [Markup.button.callback('👤 Profile', 'menu:profile'), Markup.button.callback('🏆 Ranking', 'menu:ranking')],
-    [Markup.button.callback('🎯 Daily', 'menu:daily'), Markup.button.callback('🔥 Eris Rage', 'menu:rage')],
+    [
+      Markup.button.callback('⚔️ مبارزه', 'menu:fight'),
+      Markup.button.callback('🏋️ تمرین', 'menu:training')
+    ],
+    [
+      Markup.button.callback('👤 پروفایل', 'menu:profile'),
+      Markup.button.callback('🏆 رتبه‌بندی', 'menu:ranking')
+    ],
+    [
+      Markup.button.callback('🎯 روزانه', 'menu:daily'),
+      Markup.button.callback('🔥 خشم اریس', 'menu:rage')
+    ],
   ]);
 }
 
 function challengeKeyboard(battleId) {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('⚔️ ACCEPT', `battle:${battleId}:accept`),
-      Markup.button.callback('❌ DECLINE', `battle:${battleId}:decline`),
+      Markup.button.callback('⚔️ قبول کردن', `battle:${battleId}:accept`),
+      Markup.button.callback('❌ رد کردن', `battle:${battleId}:decline`),
     ],
   ]);
 }
@@ -21,32 +29,67 @@ function challengeKeyboard(battleId) {
 function moveKeyboard(battleId) {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('⚔️ Attack', `battle:${battleId}:move:ATTACK`),
-      Markup.button.callback('🛡 Guard', `battle:${battleId}:move:GUARD`),
+      Markup.button.callback(
+        '⚔️ حمله',
+        `battle:${battleId}:move:ATTACK`
+      ),
+      Markup.button.callback(
+        '🛡 دفاع',
+        `battle:${battleId}:move:GUARD`
+      ),
     ],
     [
-      Markup.button.callback('💨 Dodge', `battle:${battleId}:move:DODGE`),
-      Markup.button.callback('🔥 Heavy', `battle:${battleId}:move:HEAVY_ATTACK`),
+      Markup.button.callback(
+        '💨 جاخالی',
+        `battle:${battleId}:move:DODGE`
+      ),
+      Markup.button.callback(
+        '🔥 حمله سنگین',
+        `battle:${battleId}:move:HEAVY_ATTACK`
+      ),
     ],
-    [Markup.button.callback('⚡ Counter', `battle:${battleId}:move:COUNTER`)],
+    [
+      Markup.button.callback(
+        '⚡ ضدحمله',
+        `battle:${battleId}:move:COUNTER`
+      )
+    ],
   ]);
 }
 
 function trainingKeyboard() {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('⚔️ Strength', 'training:STRENGTH'),
-      Markup.button.callback('💨 Speed', 'training:SPEED'),
+      Markup.button.callback(
+        '⚔️ قدرت',
+        'training:STRENGTH'
+      ),
+      Markup.button.callback(
+        '💨 سرعت',
+        'training:SPEED'
+      ),
     ],
     [
-      Markup.button.callback('🛡 Defense', 'training:DEFENSE'),
-      Markup.button.callback('🎯 Accuracy', 'training:ACCURACY'),
+      Markup.button.callback(
+        '🛡 دفاع',
+        'training:DEFENSE'
+      ),
+      Markup.button.callback(
+        '🎯 دقت',
+        'training:ACCURACY'
+      ),
     ],
   ]);
 }
 
 function erisEventKeyboard(eventId) {
-  return Markup.inlineKeyboard([[Markup.button.callback('⚔️ Attack Eris', `event:${eventId}:attack`)]]);
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback(
+        '⚔️ حمله به اریس',
+        `event:${eventId}:attack`
+      )
+    ]
+  ]);
 }
-
 module.exports = { mainMenu, challengeKeyboard, moveKeyboard, trainingKeyboard, erisEventKeyboard };
