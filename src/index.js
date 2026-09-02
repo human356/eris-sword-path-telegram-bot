@@ -45,6 +45,8 @@ require('./bot/commands/rankStats').register(bot);
 require('./bot/commands/daily').register(bot);
 require('./bot/commands/rage').register(bot);
 require('./bot/commands/event').register(bot);
+require('./bot/commands/shop').register(bot);
+require('./bot/commands/inventory').register(bot);
 require('./bot/commands/help').register(bot);
 require('./bot/commands/admin').register(bot);
 

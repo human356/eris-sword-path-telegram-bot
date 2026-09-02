@@ -1,0 +1,29 @@
+{
+  "STAMINA_PILL": {
+    "label": "قرص استامینا",
+    "emoji": "💊",
+    "category": "CONSUMABLE",
+    "price": 40,
+    "dailyLimit": 10,
+    "stackLimit": 60,
+    "restoreAmount": 40,
+    "usableInBattle": true,
+    "usableOutOfBattle": true,
+    "purchasable": true,
+    "description": "۴۰ واحد استامینا فوری بازیابی می‌کند. حداکثر ۱۰ عدد در روز قابل خرید، مخزن جیب من تا ۶۰ عدد."
+  },
+  "HEALING_POTION": {
+    "label": "معجون درمان",
+    "emoji": "🧪",
+    "category": "CONSUMABLE",
+    "price": 60,
+    "dailyLimit": 20,
+    "stackLimit": 20,
+    "healMin": 45,
+    "healMax": 64,
+    "usableInBattle": true,
+    "usableOutOfBattle": true,
+    "purchasable": true,
+    "description": "بین ۴۵ تا ۶۴ واحد سلامتی بازمی‌گرداند. حداکثر ۲۰ عدد در روز قابل خرید، مخزن جیب من تا ۲۰ عدد."
+  }
+}

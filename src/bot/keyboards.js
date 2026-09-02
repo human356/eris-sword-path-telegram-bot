@@ -14,6 +14,10 @@ function mainMenu() {
       Markup.button.callback('🎯 روزانه', 'menu:daily'),
       Markup.button.callback('🔥 خشم اریس', 'menu:rage')
     ],
+    [
+      Markup.button.callback('🛒 فروشگاه', 'menu:shop'),
+      Markup.button.callback('🎒 جیب من', 'menu:inventory')
+    ],
   ]);
 }
 
@@ -92,4 +96,19 @@ function erisEventKeyboard(eventId) {
     ]
   ]);
 }
-module.exports = { mainMenu, challengeKeyboard, moveKeyboard, trainingKeyboard, erisEventKeyboard };
+
+/** items: [{ key, label, emoji, price }] — one buy button per row, plus a shortcut to جیب من. */
+function shopKeyboard(items) {
+  const rows = items.map((item) => [
+    Markup.button.callback(
+      `${item.emoji || '📦'} ${item.label} — ${item.price}🪙`,
+      `shop:buy:${item.key}`
+    ),
+  ]);
+  rows.push([Markup.button.callback('🎒 جیب من', 'menu:inventory')]);
+  return Markup.inlineKeyboard(rows);
+}
+
+module.exports = {
+  mainMenu, challengeKeyboard, moveKeyboard, trainingKeyboard, erisEventKeyboard, shopKeyboard,
+};
