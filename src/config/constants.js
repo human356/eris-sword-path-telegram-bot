@@ -147,9 +147,25 @@ module.exports = {
     ACCURACY: { stat: 'crit_chance', label: '🎯 Accuracy', gainAmount: 0.005 },
   },
 
-  // ---------- Stamina regeneration ----------
-  STAMINA_REGEN_PER_MINUTE: 1,
+  // ---------- Stamina regeneration (spec §4) ----------
+  // Level 1: one stamina point every 5 minutes -> 1/5 point per minute.
+  STAMINA_REGEN_BASE_PER_MINUTE: 1 / 5,
+  // Each level makes regen this much faster, relative to the base rate
+  // (level L rate = BASE * (1 + SPEEDUP * (L - 1))) — level 21 regens 2x as
+  // fast as level 1, for example.
+  STAMINA_REGEN_SPEEDUP_PER_LEVEL: 0.05,
+  // Max stamina at level L = BASE_STAMINA + this * (L - 1).
+  STAMINA_CAPACITY_PER_LEVEL: 15,
+
+  // ---------- HP regeneration (spec §6) ----------
+  // Base rate at level 1 (points per minute, outside of battle only).
   HP_REGEN_PER_MINUTE: 2,
+  // Same growth model as stamina above — tune freely, spec only says
+  // "faster regen + bigger pool per level" without exact numbers.
+  HP_REGEN_SPEEDUP_PER_LEVEL: 0.05,
+  // Max HP at level L = BASE_HP + this * (L - 1). BASE_HP (100) is the
+  // level-1 starting pool the spec calls out explicitly.
+  HP_CAPACITY_PER_LEVEL: 10,
 
   // ---------- Daily challenge ----------
   DAILY_CHALLENGE_COOLDOWN_HOURS: 24,

@@ -2,19 +2,31 @@
 const playerStatsModel = require('../../database/models/playerStatsModel');
 const { renderProfile, renderWelcome } = require('../views/profileView');
 const { mainMenu } = require('../keyboards');
-const { regenSince } = require('../../utils/formulas');
-const C = require('../../config/constants');
+const { regenSince, staminaRegenRatePerMinute, hpRegenRatePerMinute } = require('../../utils/formulas');
 
 async function applyPassiveRegen(telegramId, groupId, stats) {
-  const newStamina = regenSince(stats.last_stamina_regen_at, stats.stamina, stats.max_stamina, C.STAMINA_REGEN_PER_MINUTE);
-  const newHp = regenSince(stats.last_hp_regen_at, stats.hp, stats.max_hp, C.HP_REGEN_PER_MINUTE);
-  if (newStamina !== stats.stamina || newHp !== stats.hp) {
-    return playerStatsModel.updatePlayerStats(telegramId, groupId, {
-      stamina: newStamina, hp: newHp,
-      last_stamina_regen_at: new Date(), last_hp_regen_at: new Date(),
-    });
+  const staminaRate = staminaRegenRatePerMinute(stats.level);
+  const hpRate = hpRegenRatePerMinute(stats.level);
+
+  const newStamina = regenSince(stats.last_stamina_regen_at, stats.stamina, stats.max_stamina, staminaRate);
+  const newHp = regenSince(stats.last_hp_regen_at, stats.hp, stats.max_hp, hpRate);
+
+  // Only reset the timer for whichever stat actually ticked up — resetting
+  // both unconditionally (the old behavior) throws away fractional regen
+  // progress on the stat that didn't tick this time, which matters more now
+  // that HP and stamina regen at different, level-scaled speeds.
+  const patch = {};
+  if (newStamina !== stats.stamina) {
+    patch.stamina = newStamina;
+    patch.last_stamina_regen_at = new Date();
   }
-  return stats;
+  if (newHp !== stats.hp) {
+    patch.hp = newHp;
+    patch.last_hp_regen_at = new Date();
+  }
+
+  if (Object.keys(patch).length === 0) return stats;
+  return playerStatsModel.updatePlayerStats(telegramId, groupId, patch);
 }
 
 function register(bot) {

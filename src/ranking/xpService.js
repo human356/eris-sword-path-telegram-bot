@@ -1,10 +1,13 @@
 'use strict';
-const { applyXpGain } = require('../utils/formulas');
+const { applyXpGain, maxHpForLevel, maxStaminaForLevel } = require('../utils/formulas');
 const { computeSwordRank } = require('../utils/rankUtil');
 const playerStatsModel = require('../database/models/playerStatsModel');
 
 /**
  * Applies XP gain, level-ups, and re-derives Sword Rank in one go.
+ * On level-up, also grows max HP/stamina (spec §4, §6) and tops up the
+ * player's CURRENT hp/stamina by the same amount the cap grew, so leveling
+ * up always feels like a net gain rather than just a bigger empty bucket.
  * Returns { stats, leveledUp, levelsGained, rankChanged, newRank }.
  */
 async function grantXp(telegramId, groupId, stats, xpGained) {
@@ -15,9 +18,21 @@ async function grantXp(telegramId, groupId, stats, xpGained) {
   const newRank = computeSwordRank(candidateStats);
   const rankChanged = newRank.key !== previousRank;
 
-  const updated = await playerStatsModel.updatePlayerStats(telegramId, groupId, {
-    level, xp, sword_rank: newRank.key,
-  });
+  const patch = { level, xp, sword_rank: newRank.key };
+
+  if (leveledUp) {
+    const newMaxHp = maxHpForLevel(level);
+    const newMaxStamina = maxStaminaForLevel(level);
+    const hpCapGain = Math.max(0, newMaxHp - stats.max_hp);
+    const staminaCapGain = Math.max(0, newMaxStamina - stats.max_stamina);
+
+    patch.max_hp = newMaxHp;
+    patch.max_stamina = newMaxStamina;
+    patch.hp = Math.min(newMaxHp, stats.hp + hpCapGain);
+    patch.stamina = Math.min(newMaxStamina, stats.stamina + staminaCapGain);
+  }
+
+  const updated = await playerStatsModel.updatePlayerStats(telegramId, groupId, patch);
 
   return { stats: updated, leveledUp, levelsGained, rankChanged, newRank };
 }
