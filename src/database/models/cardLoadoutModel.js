@@ -1,5 +1,7 @@
 'use strict';
 const { query, withTransaction } = require('../pool');
+const inventoryModel = require('./inventoryModel');
+const itemsCatalog = require('../../config/items.json');
 
 // These match battleEngine.MOVES exactly — every player starts with exactly
 // these 5 in their 5 loadout slots (spec: "در ابتدا فقط ۵ کارت ابتدایی").
@@ -34,9 +36,9 @@ async function getLoadout(telegramId, groupId) {
 }
 
 /**
- * Sets one slot (1-5) to a card key. Ownership/eligibility checks (does the
- * player actually own this card, are they mid-battle, etc.) belong to the
- * caller — this model is intentionally dumb. Wired up fully in Phase 2.
+ * Sets one slot (1-5) to a card key. Callers are responsible for checking
+ * ownership and that the player isn't mid-battle (see inventory.js) — this
+ * model stays intentionally dumb about game rules.
  */
 async function setSlot(telegramId, groupId, slot, cardKey) {
   await getLoadout(telegramId, groupId); // ensure the row exists first
@@ -47,4 +49,22 @@ async function setSlot(telegramId, groupId, slot, cardKey) {
   );
 }
 
-module.exports = { STARTER_LOADOUT, getLoadout, setSlot };
+/**
+ * Cards a player is allowed to slot in: the 5 starter moves, plus any
+ * items.json entry with category "CARD" they currently hold in inventory.
+ * (No CARD items exist yet — that's Phase 4 — so today this just returns
+ * the 5 starters, but the mechanism is ready.)
+ */
+async function getOwnedCardKeys(telegramId, groupId) {
+  const owned = new Set(STARTER_LOADOUT);
+  const items = await inventoryModel.getInventory(telegramId, groupId);
+  for (const row of items) {
+    const def = itemsCatalog[row.item_key];
+    if (def && def.category === 'CARD' && row.quantity > 0) {
+      owned.add(row.item_key);
+    }
+  }
+  return Array.from(owned);
+}
+
+module.exports = { STARTER_LOADOUT, getLoadout, setSlot, getOwnedCardKeys };

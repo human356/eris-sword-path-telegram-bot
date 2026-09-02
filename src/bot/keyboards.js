@@ -58,6 +58,18 @@ function moveKeyboard(battleId) {
         `battle:${battleId}:move:COUNTER`
       )
     ],
+    // Item use is a separate action from picking a move — a player can use
+    // an item AND still submit a move the same round (spec §3/§8).
+    [
+      Markup.button.callback(
+        '💊 قرص استامینا',
+        `battle:${battleId}:item:STAMINA_PILL`
+      ),
+      Markup.button.callback(
+        '🧪 معجون درمان',
+        `battle:${battleId}:item:HEALING_POTION`
+      ),
+    ],
   ]);
 }
 

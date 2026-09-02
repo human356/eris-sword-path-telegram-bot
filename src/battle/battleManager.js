@@ -5,6 +5,7 @@ const playerStatsModel = require('../database/models/playerStatsModel');
 const userModel = require('../database/models/userModel');
 const transactionModel = require('../database/models/transactionModel');
 const groupModel = require('../database/models/groupModel');
+const inventoryModel = require('../database/models/inventoryModel');
 const { withTransaction } = require('../database/pool');
 
 const engine = require('./battleEngine');
@@ -12,12 +13,15 @@ const xpService = require('../ranking/xpService');
 const ratingService = require('../ranking/ratingService');
 const streakService = require('../ranking/streakService');
 const coinService = require('../economy/coinService');
+const shopService = require('../economy/shopService');
+const consumableService = require('../economy/consumableService');
 const rageService = require('../eris/rageService');
 const erisVoice = require('../eris/erisVoice');
 const achievementModel = require('../database/models/achievementModel');
 const dailyChallengeService = require('../services/dailyChallengeService');
 const erisEventService = require('../events/erisEventService');
 const { getDuplicateOpponentRewardScale } = require('../utils/antiAbuse');
+const { getCardLabel } = require('../utils/cardLabels');
 const { progressBar, num, escapeHtml } = require('../utils/format');
 const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
 
@@ -27,6 +31,9 @@ const roundTimers = new Map();
 const challengeTimers = new Map();
 // Pending moves collected for the current round before both sides are in.
 const pendingMoves = new Map(); // battleId -> { [telegramId]: move }
+// Items consumed so far THIS round, kept only for building the round report
+// text — the actual HP/stamina effect is already applied live (see useItem).
+const pendingItems = new Map(); // battleId -> { [telegramId]: string[] }
 
 function clearTimer(map, battleId) {
   const t = map.get(battleId);
@@ -34,6 +41,11 @@ function clearTimer(map, battleId) {
     clearTimeout(t);
     map.delete(battleId);
   }
+}
+
+function clearRoundBookkeeping(battleId) {
+  pendingMoves.delete(battleId);
+  pendingItems.delete(battleId);
 }
 
 function statsSnapshot(stats) {
@@ -133,7 +145,8 @@ function createBattleManager(bot) {
     `⚔️ <b>دوئل — راند ${battle.round_number}</b>\n\n` +
     `👤 ${escapeHtml(challenger.display_name)}\n❤️ ${battle.challenger_hp} / 100  ⚡ ${battle.challenger_stamina} / 100\n\n` +
     `👤 ${escapeHtml(opponent.display_name)}\n❤️ ${battle.opponent_hp} / 100  ⚡ ${battle.opponent_stamina} / 100\n\n` +
-    `حرکت خود را انتخاب کنید: (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)`;
+    `حرکت خود را انتخاب کنید: (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)\n` +
+    `<i>می‌توانید علاوه بر حرکت، یک آیتم هم مصرف کنید.</i>`;
     
     const message = await bot.telegram.editMessageText(
       chatId, battle.chat_message_id, undefined, text,
@@ -175,10 +188,59 @@ function createBattleManager(bot) {
     if (bothIn) {
       clearTimer(roundTimers, battleId);
       await resolveRound(battle, moves, chatId);
-      pendingMoves.delete(battleId);
+      clearRoundBookkeeping(battleId);
     }
 
     return { accepted: true, waitingForOpponent: !bothIn };
+  }
+
+  /**
+   * Uses one item mid-round — a free action alongside (not instead of) the
+   * player's move. Applies the HP/stamina effect immediately and remembers
+   * it so the round report can mention it. Returns { accepted, reason? }.
+   */
+  async function useItem(battleId, telegramId, itemKey, chatId) {
+    const battle = await battleModel.getBattle(battleId);
+    if (!battle || battle.state !== battleModel.STATES.WAITING_FOR_MOVES) {
+      return { accepted: false, reason: 'NOT_ACTIVE' };
+    }
+    if (telegramId !== battle.challenger_id && telegramId !== battle.opponent_id) {
+      return { accepted: false, reason: 'NOT_PARTICIPANT' };
+    }
+
+    const def = shopService.getItemDef(itemKey);
+    if (!def || !def.usableInBattle) return { accepted: false, reason: 'INVALID_ITEM' };
+
+    const effect = consumableService.computeEffect(itemKey);
+    if (!effect) return { accepted: false, reason: 'INVALID_ITEM' };
+
+    const removed = await inventoryModel.removeItem(telegramId, battle.group_id, itemKey, 1);
+    if (removed === null) return { accepted: false, reason: 'NO_ITEM' };
+
+    const isChallenger = telegramId === battle.challenger_id;
+    const playerStats = await playerStatsModel.getPlayerStats(telegramId, battle.group_id);
+
+    const patch = {};
+    let newValue;
+    if (effect.stat === 'stamina') {
+      const current = isChallenger ? battle.challenger_stamina : battle.opponent_stamina;
+      newValue = Math.min(playerStats.max_stamina, current + effect.amount);
+      patch[isChallenger ? 'challenger_stamina' : 'opponent_stamina'] = newValue;
+    } else {
+      const current = isChallenger ? battle.challenger_hp : battle.opponent_hp;
+      newValue = Math.min(playerStats.max_hp, current + effect.amount);
+      patch[isChallenger ? 'challenger_hp' : 'opponent_hp'] = newValue;
+    }
+
+    await battleModel.updateLiveStats(battleId, patch);
+
+    const items = pendingItems.get(battleId) || {};
+    const list = items[telegramId] || [];
+    list.push(`${def.emoji || '📦'} ${def.label} (${effect.label})`);
+    items[telegramId] = list;
+    pendingItems.set(battleId, items);
+
+    return { accepted: true, effect, newValue };
   }
 
   async function forceResolveRound(battleId, chatId) {
@@ -193,7 +255,40 @@ function createBattleManager(bot) {
       moves[battle.opponent_id] = engine.autoDefensiveMove(battle.opponent_stamina);
     }
     await resolveRound(battle, moves, chatId, true);
-    pendingMoves.delete(battleId);
+    clearRoundBookkeeping(battleId);
+  }
+
+  /** Builds and sends the "چه اتفاقی افتاد" report for the round that just resolved (spec §8). */
+  async function sendRoundReport(battle, chatId, { challenger, opponent, cMove, oMove, aDamageDealt, bDamageDealt, log, newChallengerHp, newOpponentHp, newChallengerStamina, newOpponentStamina }) {
+    const itemsThisRound = pendingItems.get(battle.id) || {};
+    const cItems = itemsThisRound[battle.challenger_id] || [];
+    const oItems = itemsThisRound[battle.opponent_id] || [];
+
+    let text = `📋 <b>گزارش راند ${battle.round_number}</b>\n\n`;
+
+    text +=
+      `👤 ${escapeHtml(challenger.display_name)}\n` +
+      `🎴 حرکت: ${cMove ? getCardLabel(cMove) : 'بدون واکنش (بی‌رمق)'}\n` +
+      `💥 آسیب واردشده به حریف: ${num(aDamageDealt)}\n` +
+      (cItems.length ? `🎒 آیتم مصرف‌شده: ${cItems.join('، ')}\n` : '') +
+      `\n`;
+
+    text +=
+      `👤 ${escapeHtml(opponent.display_name)}\n` +
+      `🎴 حرکت: ${oMove ? getCardLabel(oMove) : 'بدون واکنش (بی‌رمق)'}\n` +
+      `💥 آسیب واردشده به حریف: ${num(bDamageDealt)}\n` +
+      (oItems.length ? `🎒 آیتم مصرف‌شده: ${oItems.join('، ')}\n` : '') +
+      `\n`;
+
+    if (log.length) {
+      text += `📜 ${log.join('\n')}\n\n`;
+    }
+
+    text +=
+      `❤️ سلامتی باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerHp} | ${escapeHtml(opponent.display_name)}: ${newOpponentHp}\n\n` +
+      `⚡ استقامت باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerStamina} | ${escapeHtml(opponent.display_name)}: ${newOpponentStamina}`;
+
+    await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' }).catch(() => {});
   }
 
   async function resolveRound(battle, moves, chatId, wasTimeout = false) {
@@ -249,9 +344,24 @@ function createBattleManager(bot) {
     const newChallengerAfkStreak = cAfk ? battle.challenger_afk_streak + 1 : 0;
     const newOpponentAfkStreak = oAfk ? battle.opponent_afk_streak + 1 : 0;
 
+    // Fold any item-use lines into the persisted round log too, not just the chat report.
+    const itemsThisRound = pendingItems.get(battle.id) || {};
+    const persistedLog = [...log];
+    for (const telegramId of Object.keys(itemsThisRound)) {
+      for (const line of itemsThisRound[telegramId]) persistedLog.push(line);
+    }
+
     await battleModel.recordRound(battle.id, battle.round_number, {
       challengerMove: cMove, opponentMove: oMove,
-      challengerDamageDealt: aDamageDealt, opponentDamageDealt: bDamageDealt, log,
+      challengerDamageDealt: aDamageDealt, opponentDamageDealt: bDamageDealt, log: persistedLog,
+    });
+
+    const challenger = await userModel.getUser(battle.challenger_id);
+    const opponent = await userModel.getUser(battle.opponent_id);
+
+    await sendRoundReport(battle, chatId, {
+      challenger, opponent, cMove, oMove, aDamageDealt, bDamageDealt, log,
+      newChallengerHp, newOpponentHp, newChallengerStamina, newOpponentStamina,
     });
 
     const battleOver =
@@ -304,6 +414,7 @@ function createBattleManager(bot) {
 
   async function finalizeBattle(battle, chatId, { forfeited = false } = {}) {
     clearTimer(roundTimers, battle.id);
+    clearRoundBookkeeping(battle.id);
 
     const challenger = await userModel.getUser(battle.challenger_id);
     const opponent = await userModel.getUser(battle.opponent_id);
@@ -435,7 +546,7 @@ function createBattleManager(bot) {
   }
 
   return {
-    startChallenge, acceptChallenge, declineChallenge, submitMove, sweepExpiredChallenges,
+    startChallenge, acceptChallenge, declineChallenge, submitMove, useItem, sweepExpiredChallenges,
   };
 }
 

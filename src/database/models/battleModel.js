@@ -12,6 +12,10 @@ const STATES = Object.freeze({
   EXPIRED: 'EXPIRED',
 });
 
+const LIVE_STAT_COLUMNS = new Set([
+  'challenger_hp', 'challenger_stamina', 'opponent_hp', 'opponent_stamina',
+]);
+
 async function createBattle({ groupId, challengerId, opponentId, challengerStats, opponentStats }) {
   const expiresAt = new Date(Date.now() + C.CHALLENGE_TIMEOUT_SECONDS * 1000);
   const { rows } = await query(
@@ -86,6 +90,26 @@ async function updateRoundState(battleId, {
   return rows[0] || null;
 }
 
+/**
+ * Applies a live HP/stamina delta mid-round (e.g. a player used an item
+ * before submitting their move) WITHOUT touching round_number/state/afk
+ * streaks. `patch` keys must be a subset of challenger_hp/challenger_stamina/
+ * opponent_hp/opponent_stamina.
+ */
+async function updateLiveStats(battleId, patch) {
+  const entries = Object.entries(patch).filter(([k]) => LIVE_STAT_COLUMNS.has(k));
+  if (entries.length === 0) return getBattle(battleId);
+
+  const setClauses = entries.map(([k], i) => `${k} = $${i + 2}`);
+  const values = entries.map(([, v]) => v);
+
+  const { rows } = await query(
+    `UPDATE battles SET ${setClauses.join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`,
+    [battleId, ...values]
+  );
+  return rows[0] || null;
+}
+
 async function finishBattle(battleId, winnerId) {
   const { rows } = await query(
     `UPDATE battles SET state = $2, winner_id = $3, updated_at = now()
@@ -134,6 +158,7 @@ module.exports = {
   setChatMessageId,
   transitionState,
   updateRoundState,
+  updateLiveStats,
   finishBattle,
   expireStaleBattles,
   recordRound,

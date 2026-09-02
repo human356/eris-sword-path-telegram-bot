@@ -65,6 +65,30 @@ function register(bot, battleManager) {
           ? 'حرکت ثبت شد. منتظر حرکت حریف باشید...'
           : 'حرکت ثبت شد!'
       );  });
+
+  // battle:<id>:item:<ITEM_KEY> — using an item is separate from picking a
+  // move; a player can do both the same round (spec §3/§8).
+  bot.action(/^battle:(\d+):item:(STAMINA_PILL|HEALING_POTION)$/, async (ctx) => {
+    const battleId = Number(ctx.match[1]);
+    const itemKey = ctx.match[2];
+
+    const result = await battleManager.useItem(battleId, ctx.from.id, itemKey, ctx.chat.id);
+
+    if (!result.accepted) {
+      const messages = {
+        NOT_ACTIVE: 'این راند به پایان رسیده است.',
+        NOT_PARTICIPANT: 'شما در این دوئل حضور ندارید.',
+        INVALID_ITEM: 'این آیتم در نبرد قابل استفاده نیست.',
+        NO_ITEM: 'شما از این آیتم چیزی ندارید. از /shop خرید کنید.',
+      };
+      return ctx.answerCbQuery(
+        messages[result.reason] || 'مصرف آیتم انجام نشد.',
+        { show_alert: true }
+      );
+    }
+
+    await ctx.answerCbQuery(`✅ مصرف شد: ${result.effect.label}`, { show_alert: true });
+  });
 }
 
 module.exports = { register };

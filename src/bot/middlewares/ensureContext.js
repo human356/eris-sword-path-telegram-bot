@@ -7,6 +7,13 @@ const { displayNameOf } = require('../../utils/format');
  * Populates ctx.state.user (global user row) and ctx.state.groupId.
  * The game is group-only (spec §1: "no Mini App, no website"), so private
  * chats get a friendly notice instead of being processed as gameplay.
+ *
+ * Exception: private callback queries (inline-button taps) ARE let through.
+ * This is what powers "جیب من" — it's DM'd to the player so nobody else in
+ * the group can see it, and its buttons (loadout editing, item consumption)
+ * need to keep working there. Those handlers must get the group id from the
+ * callback_data themselves, since ctx.state.groupId is never set outside a
+ * group chat.
  */
 async function ensureContext(ctx, next) {
   if (!ctx.from) return next();
@@ -28,6 +35,11 @@ async function ensureContext(ctx, next) {
 
   if (!isGroup) {
     ctx.state.isGroup = false;
+
+    if (ctx.callbackQuery) {
+      return next(); // private inline-button taps (جیب من) are allowed through
+    }
+
     if (ctx.updateType === 'message' && ctx.message && ctx.message.text && ctx.message.text.startsWith('/')) {
       await ctx.reply('⚔️ اریس — Sword Path فقط داخل گروه تلگرام کار می‌کند. من را به یک گروه اضافه کنید و دوباره آنجا امتحان کنید!');
     }
