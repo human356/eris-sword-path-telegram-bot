@@ -57,7 +57,11 @@ module.exports = {
   GUARD_DAMAGE_REDUCTION: 0.75, // guard blocks 75% of incoming damage
   CRIT_DAMAGE_MULTIPLIER: 1.5,
   DODGE_BASE_CHANCE: 0.20, // + scales with Speed difference
-  MAX_ROUNDS: 12, // hard cap so a duel can never drag on forever
+  MAX_ROUNDS: 25, // hard cap so a duel can never drag on forever (spec §9/§10)
+  // No HP-restoring ITEM (potion/rice — not cards) may be used once the duel
+  // reaches this round (spec §9: "در راند ۲۴ و ۲۵ اجازهٔ مصرف هیچ آیتمی که
+  // به سلامتی کمک کند داده نمی‌شود").
+  HEAL_LOCK_START_ROUND: 24,
 
   // ---------- Battle timing ----------
   CHALLENGE_TIMEOUT_SECONDS: 60,

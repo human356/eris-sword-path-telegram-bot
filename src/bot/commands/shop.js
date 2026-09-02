@@ -13,6 +13,7 @@ function renderShop() {
       `${escapeHtml(item.description || '')}\n` +
       `🪙 قیمت: ${num(item.price)}` +
       (item.dailyLimit ? ` | سقف روزانه: ${item.dailyLimit}` : '') +
+      (item.category === 'CARD' ? ` | یک‌بار قابل خرید` : '') +
       `\n\n`;
   }
 
@@ -46,6 +47,7 @@ function register(bot) {
         INVALID_ITEM: 'این آیتم در دسترس نیست.',
         NOT_ENOUGH_COINS: `سکه کافی ندارید. قیمت: ${result.price ? num(result.price) : ''}`,
         DAILY_LIMIT: 'سقف خرید روزانهٔ این آیتم پر شده است. فردا دوباره سر بزنید.',
+        ALREADY_OWNED: 'شما این کارت را از قبل دارید.',
       };
       return ctx.answerCbQuery(
         messages[result.reason] || 'خرید انجام نشد.',

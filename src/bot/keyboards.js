@@ -1,5 +1,8 @@
 'use strict';
 const { Markup } = require('telegraf');
+const { getCardLabel } = require('../utils/cardLabels');
+const itemsCatalog = require('../config/items.json');
+
 function mainMenu() {
   return Markup.inlineKeyboard([
     [
@@ -30,47 +33,41 @@ function challengeKeyboard(battleId) {
   ]);
 }
 
-function moveKeyboard(battleId) {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback(
-        '⚔️ حمله',
-        `battle:${battleId}:move:ATTACK`
-      ),
-      Markup.button.callback(
-        '🛡 دفاع',
-        `battle:${battleId}:move:GUARD`
-      ),
-    ],
-    [
-      Markup.button.callback(
-        '💨 جاخالی',
-        `battle:${battleId}:move:DODGE`
-      ),
-      Markup.button.callback(
-        '🔥 حمله سنگین',
-        `battle:${battleId}:move:HEAVY_ATTACK`
-      ),
-    ],
-    [
-      Markup.button.callback(
-        '⚡ ضدحمله',
-        `battle:${battleId}:move:COUNTER`
-      )
-    ],
-    // Item use is a separate action from picking a move — a player can use
-    // an item AND still submit a move the same round (spec §3/§8).
-    [
-      Markup.button.callback(
-        '💊 قرص استامینا',
-        `battle:${battleId}:item:STAMINA_PILL`
-      ),
-      Markup.button.callback(
-        '🧪 معجون درمان',
-        `battle:${battleId}:item:HEALING_POTION`
-      ),
-    ],
-  ]);
+/**
+ * `cardKeys`: union of the two duelists' 5-slot loadouts (Phase 2). Every
+ * card either of them has equipped gets a button — pressing one that isn't
+ * in YOUR OWN loadout is rejected by battleManager.submitMove with a clear
+ * error, since a single Telegram message can't show two different keyboards
+ * to two different people.
+ */
+function moveKeyboard(battleId, cardKeys) {
+  const moveRows = [];
+  for (let i = 0; i < cardKeys.length; i += 2) {
+    const row = [
+      Markup.button.callback(getCardLabel(cardKeys[i]), `battle:${battleId}:move:${cardKeys[i]}`),
+    ];
+    if (cardKeys[i + 1]) {
+      row.push(Markup.button.callback(getCardLabel(cardKeys[i + 1]), `battle:${battleId}:move:${cardKeys[i + 1]}`));
+    }
+    moveRows.push(row);
+  }
+
+  // Item use is a separate action from picking a move — a player can use an
+  // item AND still submit a move the same round (spec §3/§8). Built from the
+  // catalog directly so newly added in-battle items automatically show up.
+  const itemRows = [];
+  const usableItemKeys = Object.keys(itemsCatalog).filter((key) => itemsCatalog[key].usableInBattle);
+  for (let i = 0; i < usableItemKeys.length; i += 2) {
+    const defA = itemsCatalog[usableItemKeys[i]];
+    const row = [Markup.button.callback(`${defA.emoji || '📦'} ${defA.label}`, `battle:${battleId}:item:${usableItemKeys[i]}`)];
+    if (usableItemKeys[i + 1]) {
+      const defB = itemsCatalog[usableItemKeys[i + 1]];
+      row.push(Markup.button.callback(`${defB.emoji || '📦'} ${defB.label}`, `battle:${battleId}:item:${usableItemKeys[i + 1]}`));
+    }
+    itemRows.push(row);
+  }
+
+  return Markup.inlineKeyboard([...moveRows, ...itemRows]);
 }
 
 function trainingKeyboard() {

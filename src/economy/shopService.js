@@ -26,6 +26,15 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
     return { success: false, reason: 'INVALID_QUANTITY' };
   }
 
+  // Battle cards (Phase 4) are one-time unlocks (stackLimit 1) — buying one
+  // you already own would otherwise just silently waste coins.
+  if (def.category === 'CARD') {
+    const owned = await inventoryModel.getItemQuantity(telegramId, groupId, itemKey);
+    if (owned >= (def.stackLimit || 1)) {
+      return { success: false, reason: 'ALREADY_OWNED' };
+    }
+  }
+
   if (def.dailyLimit) {
     const boughtToday = await purchaseLogModel.getTodayPurchasedQty(telegramId, groupId, itemKey);
     if (boughtToday + quantity > def.dailyLimit) {

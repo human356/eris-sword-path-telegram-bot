@@ -25,8 +25,10 @@ function register(bot, battleManager) {
     }
   });
 
-  // battle:<id>:move:<MOVE>
-  bot.action(/^battle:(\d+):move:(ATTACK|GUARD|DODGE|HEAVY_ATTACK|COUNTER)$/, async (ctx) => {
+  // battle:<id>:move:<MOVE> — MOVE can be one of the 5 starter moves OR any
+  // of the 9 Phase 4 special cards; battleManager validates it against the
+  // presser's own equipped loadout.
+  bot.action(/^battle:(\d+):move:([A-Z_]+)$/, async (ctx) => {
     const battleId = Number(ctx.match[1]);
     const move = ctx.match[2];
     const battle = await battleModel.getBattle(battleId);
@@ -42,33 +44,31 @@ function register(bot, battleManager) {
     const result = await battleManager.submitMove(battleId, ctx.from.id, move, ctx.chat.id);
     if (!result.accepted) {
       const messages = {
-
         NOT_ACTIVE: 'این راند به پایان رسیده است.',
-      
         NOT_PARTICIPANT: 'شما در این دوئل حضور ندارید.',
-      
         INVALID_MOVE: 'حرکت نامعتبر است.',
-      
+        NOT_EQUIPPED: 'این کارت در ۵ خانهٔ فعال شما نیست. از «جیب من» تنظیمش کنید.',
         NO_STAMINA: 'استقامت کافی برای انجام این حرکت را ندارید!',
-      
         ALREADY_MOVED: 'شما حرکت خود را در این راند انتخاب کرده‌اید.',
-      
+        MOVE_LOCKED: 'این سبک را همین الان استفاده کردید — یک راند باید صبر کنید.',
+        STUNNED: 'در اثر یک اثر ویژه، این راند نمی‌توانید کارتی انتخاب کنید.',
       };
-      
       return ctx.answerCbQuery(
         messages[result.reason] || 'امکان ثبت این حرکت وجود ندارد.',
         { show_alert: true }
-      );}
+      );
+    }
 
-      await ctx.answerCbQuery(
-        result.waitingForOpponent
-          ? 'حرکت ثبت شد. منتظر حرکت حریف باشید...'
-          : 'حرکت ثبت شد!'
-      );  });
+    await ctx.answerCbQuery(
+      result.waitingForOpponent
+        ? 'حرکت ثبت شد. منتظر حرکت حریف باشید...'
+        : 'حرکت ثبت شد!'
+    );
+  });
 
   // battle:<id>:item:<ITEM_KEY> — using an item is separate from picking a
   // move; a player can do both the same round (spec §3/§8).
-  bot.action(/^battle:(\d+):item:(STAMINA_PILL|HEALING_POTION)$/, async (ctx) => {
+  bot.action(/^battle:(\d+):item:([A-Z_]+)$/, async (ctx) => {
     const battleId = Number(ctx.match[1]);
     const itemKey = ctx.match[2];
 
@@ -80,6 +80,7 @@ function register(bot, battleManager) {
         NOT_PARTICIPANT: 'شما در این دوئل حضور ندارید.',
         INVALID_ITEM: 'این آیتم در نبرد قابل استفاده نیست.',
         NO_ITEM: 'شما از این آیتم چیزی ندارید. از /shop خرید کنید.',
+        HEAL_LOCKED_LATE_ROUND: 'در راند ۲۴ و ۲۵ نبرد، مصرف آیتم‌های درمانی مجاز نیست.',
       };
       return ctx.answerCbQuery(
         messages[result.reason] || 'مصرف آیتم انجام نشد.',

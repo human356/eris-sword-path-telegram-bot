@@ -12,8 +12,11 @@ const STATES = Object.freeze({
   EXPIRED: 'EXPIRED',
 });
 
-const LIVE_STAT_COLUMNS = new Set([
+// Columns updateLiveStats() is allowed to touch mid-round (item usage etc.)
+// without disturbing round_number/afk streaks/state.
+const LIVE_PATCHABLE_COLUMNS = new Set([
   'challenger_hp', 'challenger_stamina', 'opponent_hp', 'opponent_stamina',
+  'active_effects', 'hidden_report_side',
 ]);
 
 async function createBattle({ groupId, challengerId, opponentId, challengerStats, opponentStats }) {
@@ -72,36 +75,51 @@ async function transitionState(battleId, fromStates, toState, extraSet = {}, ext
   return rows[0] || null; // null means the transition was rejected (already left that state)
 }
 
+/**
+ * Advances a battle to the next round (or into RESOLVING/FINISHED). Beyond
+ * the original hp/stamina/afk/state fields, Phase 4 adds:
+ *   challengerLockedMove / opponentLockedMove — the move that side must NOT
+ *     repeat next round (spec §9), or null to clear the lock.
+ *   activeEffects — the full (already-processed-for-this-round) array of
+ *     timed effects (poison/stun/regen-buff/guard-break) to persist.
+ * Both are optional and default to "leave unchanged" via COALESCE-free
+ * explicit passthrough from the caller (battleManager always supplies them).
+ */
 async function updateRoundState(battleId, {
   roundNumber, challengerHp, challengerStamina, opponentHp, opponentStamina,
   challengerAfkStreak, opponentAfkStreak, state,
+  challengerLockedMove = null, opponentLockedMove = null, activeEffects = [],
 }) {
   const { rows } = await query(
     `UPDATE battles
      SET round_number = $2, challenger_hp = $3, challenger_stamina = $4,
          opponent_hp = $5, opponent_stamina = $6,
          challenger_afk_streak = $7, opponent_afk_streak = $8,
-         state = $9, updated_at = now()
+         state = $9, challenger_locked_move = $10, opponent_locked_move = $11,
+         active_effects = $12::jsonb, updated_at = now()
      WHERE id = $1
      RETURNING *`,
     [battleId, roundNumber, challengerHp, challengerStamina, opponentHp, opponentStamina,
-      challengerAfkStreak, opponentAfkStreak, state]
+      challengerAfkStreak, opponentAfkStreak, state,
+      challengerLockedMove, opponentLockedMove, JSON.stringify(activeEffects)]
   );
   return rows[0] || null;
 }
 
 /**
- * Applies a live HP/stamina delta mid-round (e.g. a player used an item
- * before submitting their move) WITHOUT touching round_number/state/afk
- * streaks. `patch` keys must be a subset of challenger_hp/challenger_stamina/
- * opponent_hp/opponent_stamina.
+ * Applies a live patch mid-round (item usage before a move is submitted)
+ * WITHOUT touching round_number/state/afk streaks/locked moves.
  */
 async function updateLiveStats(battleId, patch) {
-  const entries = Object.entries(patch).filter(([k]) => LIVE_STAT_COLUMNS.has(k));
+  const entries = Object.entries(patch).filter(([k]) => LIVE_PATCHABLE_COLUMNS.has(k));
   if (entries.length === 0) return getBattle(battleId);
 
-  const setClauses = entries.map(([k], i) => `${k} = $${i + 2}`);
-  const values = entries.map(([, v]) => v);
+  const setClauses = entries.map(([k], i) => (
+    k === 'active_effects' ? `${k} = $${i + 2}::jsonb` : `${k} = $${i + 2}`
+  ));
+  // node-postgres serializes JS arrays as Postgres array literals, not JSON —
+  // active_effects must be explicitly stringified before it reaches ::jsonb.
+  const values = entries.map(([k, v]) => (k === 'active_effects' ? JSON.stringify(v) : v));
 
   const { rows } = await query(
     `UPDATE battles SET ${setClauses.join(', ')}, updated_at = now() WHERE id = $1 RETURNING *`,

@@ -39,18 +39,22 @@ function baseDamage(attackerAttack, defenderDefense, powerMultiplier = 1) {
 /**
  * Resolves one simultaneous pair of moves.
  * `a` and `b` are { attack, defense, speed, critChance, stamina, hp } style stat snapshots.
+ * `options.aGuardBroken` / `options.bGuardBroken` — set when WALL_BREAKER
+ * (Phase 4) nullified that side's GUARD bonus for this round; defaults to
+ * false, so every pre-Phase-4 call site is unaffected.
  * Returns { aDamageDealt, bDamageDealt, log: string[] }.
  * Damage dealt is always FROM the mover TO the opponent; e.g. aDamageDealt is
  * damage dealt by player A onto player B.
  */
-function resolveRound(aMove, aStats, bMove, bStats) {
+function resolveRound(aMove, aStats, bMove, bStats, options = {}) {
+  const { aGuardBroken = false, bGuardBroken = false } = options;
   const log = [];
   let aDamageDealt = 0; // A -> B
   let bDamageDealt = 0; // B -> A
 
   const isOffensive = (m) => m === MOVES.ATTACK || m === MOVES.HEAVY_ATTACK;
 
-  function resolveOneDirection(move, attacker, defenderMove, defender, who) {
+  function resolveOneDirection(move, attacker, defenderMove, defender, who, defenderGuardBroken) {
     if (move === MOVES.GUARD) {
       return 0; // guard deals no damage itself
     }
@@ -92,8 +96,12 @@ function resolveRound(aMove, aStats, bMove, bStats) {
     }
 
     if (defenderMove === MOVES.GUARD) {
-      dmg = Math.round(dmg * (1 - C.GUARD_DAMAGE_REDUCTION));
-      log.push(`حملهٔ ${who} تا حد زیادی دفاع شد.`);
+      if (!defenderGuardBroken) {
+        dmg = Math.round(dmg * (1 - C.GUARD_DAMAGE_REDUCTION));
+        log.push(`حملهٔ ${who} تا حد زیادی دفاع شد.`);
+      } else {
+        log.push(`دفاع حریف نابود شده بود — حملهٔ ${who} کامل نشست!`);
+      }
     }
 
     return dmg;
@@ -130,13 +138,13 @@ function resolveRound(aMove, aStats, bMove, bStats) {
     // A attacked into B's counter: A deals 0, B's counter deals to A.
     bDamageDealt += counterFromB.counterDeals;
   } else {
-    aDamageDealt += resolveOneDirection(aMove, aStats, bMove, bStats, 'A');
+    aDamageDealt += resolveOneDirection(aMove, aStats, bMove, bStats, 'A', bGuardBroken);
   }
 
   if (counterFromA) {
     aDamageDealt += counterFromA.counterDeals;
   } else if (!counterFromB) {
-    bDamageDealt += resolveOneDirection(bMove, bStats, aMove, aStats, 'B');
+    bDamageDealt += resolveOneDirection(bMove, bStats, aMove, aStats, 'B', aGuardBroken);
   }
 
   aDamageDealt += counterWhiff(aMove, bMove, 'A');

@@ -6,9 +6,10 @@ const userModel = require('../database/models/userModel');
 const transactionModel = require('../database/models/transactionModel');
 const groupModel = require('../database/models/groupModel');
 const inventoryModel = require('../database/models/inventoryModel');
-const { withTransaction } = require('../database/pool');
+const cardLoadoutModel = require('../database/models/cardLoadoutModel');
 
 const engine = require('./battleEngine');
+const specialCards = require('./specialCards');
 const xpService = require('../ranking/xpService');
 const ratingService = require('../ranking/ratingService');
 const streakService = require('../ranking/streakService');
@@ -22,7 +23,7 @@ const dailyChallengeService = require('../services/dailyChallengeService');
 const erisEventService = require('../events/erisEventService');
 const { getDuplicateOpponentRewardScale } = require('../utils/antiAbuse');
 const { getCardLabel } = require('../utils/cardLabels');
-const { progressBar, num, escapeHtml } = require('../utils/format');
+const { num, escapeHtml } = require('../utils/format');
 const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
 
 // In-memory timers, keyed by battle id. A single bot process owns these;
@@ -30,9 +31,10 @@ const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
 const roundTimers = new Map();
 const challengeTimers = new Map();
 // Pending moves collected for the current round before both sides are in.
-const pendingMoves = new Map(); // battleId -> { [telegramId]: move }
-// Items consumed so far THIS round, kept only for building the round report
-// text — the actual HP/stamina effect is already applied live (see useItem).
+// { [telegramId]: { move: string|null, submittedAt: number } }
+const pendingMoves = new Map();
+// Items consumed so far THIS round, kept only for the round report text —
+// the actual stat effect is already applied live (see useItem).
 const pendingItems = new Map(); // battleId -> { [telegramId]: string[] }
 
 function clearTimer(map, battleId) {
@@ -48,17 +50,6 @@ function clearRoundBookkeeping(battleId) {
   pendingItems.delete(battleId);
 }
 
-function statsSnapshot(stats) {
-  return {
-    attack: stats.attack,
-    defense: stats.defense,
-    speed: stats.speed,
-    critChance: Number(stats.crit_chance),
-    stamina: stats.stamina,
-    hp: stats.hp,
-  };
-}
-
 function rankLabel(swordRankKey) {
   const { getRankByKey } = require('../utils/rankUtil');
   const r = getRankByKey(swordRankKey);
@@ -66,6 +57,14 @@ function rankLabel(swordRankKey) {
 }
 
 function createBattleManager(bot) {
+  async function getCombinedCardKeys(battle) {
+    const [cLoadout, oLoadout] = await Promise.all([
+      cardLoadoutModel.getLoadout(battle.challenger_id, battle.group_id),
+      cardLoadoutModel.getLoadout(battle.opponent_id, battle.group_id),
+    ]);
+    return Array.from(new Set([...cLoadout, ...oLoadout]));
+  }
+
   async function startChallenge({ groupId, challengerUser, opponentUser, chatId }) {
     const challengerStats = (await playerStatsModel.getOrCreatePlayerStats(challengerUser.telegramId, groupId)).stats;
     const opponentStats = (await playerStatsModel.getOrCreatePlayerStats(opponentUser.telegramId, groupId)).stats;
@@ -77,7 +76,7 @@ function createBattleManager(bot) {
       challengerStats,
       opponentStats,
     });
-    
+
     const text =
     `⚔️ <b>چالش دوئل</b>\n\n` +
     `${escapeHtml(challengerUser.displayName)}، ${escapeHtml(opponentUser.displayName)} را به مبارزه دعوت کرد!\n\n` +
@@ -140,19 +139,32 @@ function createBattleManager(bot) {
   async function sendRoundMessage(battle, chatId) {
     const challenger = await userModel.getUser(battle.challenger_id);
     const opponent = await userModel.getUser(battle.opponent_id);
+    const cardKeys = await getCombinedCardKeys(battle);
+
+    let lockNotice = '';
+    if (battle.challenger_locked_move) {
+      lockNotice += `🔒 ${escapeHtml(challenger.display_name)} این راند نمی‌تواند «${getCardLabel(battle.challenger_locked_move)}» را انتخاب کند.\n`;
+    }
+    if (battle.opponent_locked_move) {
+      lockNotice += `🔒 ${escapeHtml(opponent.display_name)} این راند نمی‌تواند «${getCardLabel(battle.opponent_locked_move)}» را انتخاب کند.\n`;
+    }
+    if (battle.round_number >= C.HEAL_LOCK_START_ROUND) {
+      lockNotice += `⛔ از این راند به بعد مصرف آیتم‌های درمانی (معجون/برنج) مجاز نیست.\n`;
+    }
 
     const text =
     `⚔️ <b>دوئل — راند ${battle.round_number}</b>\n\n` +
-    `👤 ${escapeHtml(challenger.display_name)}\n❤️ ${battle.challenger_hp} / 100  ⚡ ${battle.challenger_stamina} / 100\n\n` +
-    `👤 ${escapeHtml(opponent.display_name)}\n❤️ ${battle.opponent_hp} / 100  ⚡ ${battle.opponent_stamina} / 100\n\n` +
+    `👤 ${escapeHtml(challenger.display_name)}\n❤️ ${battle.challenger_hp}  ⚡ ${battle.challenger_stamina}\n\n` +
+    `👤 ${escapeHtml(opponent.display_name)}\n❤️ ${battle.opponent_hp}  ⚡ ${battle.opponent_stamina}\n\n` +
+    (lockNotice ? `${lockNotice}\n` : '') +
     `حرکت خود را انتخاب کنید: (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)\n` +
     `<i>می‌توانید علاوه بر حرکت، یک آیتم هم مصرف کنید.</i>`;
-    
+
     const message = await bot.telegram.editMessageText(
       chatId, battle.chat_message_id, undefined, text,
-      { parse_mode: 'HTML', ...moveKeyboard(battle.id) }
+      { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) }
     ).catch(() =>
-      bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...moveKeyboard(battle.id) })
+      bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) })
     );
 
     clearTimer(roundTimers, battle.id);
@@ -174,14 +186,34 @@ function createBattleManager(bot) {
     }
 
     const isChallenger = telegramId === battle.challenger_id;
+
+    // Must actually be equipped in this player's own جیب من loadout (Phase 2).
+    const loadout = await cardLoadoutModel.getLoadout(telegramId, battle.group_id);
+    if (!loadout.includes(move)) {
+      return { accepted: false, reason: 'NOT_EQUIPPED' };
+    }
+
+    // Move-repeat lock (spec §9): can't use the same style two rounds running.
+    const lockedMove = isChallenger ? battle.challenger_locked_move : battle.opponent_locked_move;
+    if (lockedMove && lockedMove === move) {
+      return { accepted: false, reason: 'MOVE_LOCKED' };
+    }
+
+    // Stun (رعد و برق / پری موفق against you last round).
+    const activeEffects = Array.isArray(battle.active_effects) ? battle.active_effects : [];
+    const side = isChallenger ? 'CHALLENGER' : 'OPPONENT';
+    if (activeEffects.some((e) => e.type === 'STUN' && e.side === side)) {
+      return { accepted: false, reason: 'STUNNED' };
+    }
+
     const stamina = isChallenger ? battle.challenger_stamina : battle.opponent_stamina;
-    const cost = engine.STAMINA_COST[move];
+    const cost = specialCards.getMoveStaminaCost(move);
     if (cost === undefined) return { accepted: false, reason: 'INVALID_MOVE' };
     if (stamina < cost) return { accepted: false, reason: 'NO_STAMINA' };
 
     const moves = pendingMoves.get(battleId) || {};
     if (moves[telegramId]) return { accepted: false, reason: 'ALREADY_MOVED' };
-    moves[telegramId] = move;
+    moves[telegramId] = { move, submittedAt: Date.now() };
     pendingMoves.set(battleId, moves);
 
     const bothIn = moves[battle.challenger_id] && moves[battle.opponent_id];
@@ -196,8 +228,7 @@ function createBattleManager(bot) {
 
   /**
    * Uses one item mid-round — a free action alongside (not instead of) the
-   * player's move. Applies the HP/stamina effect immediately and remembers
-   * it so the round report can mention it. Returns { accepted, reason? }.
+   * player's move. Handles all 6 in-battle items (Phase 1-4).
    */
   async function useItem(battleId, telegramId, itemKey, chatId) {
     const battle = await battleModel.getBattle(battleId);
@@ -211,36 +242,71 @@ function createBattleManager(bot) {
     const def = shopService.getItemDef(itemKey);
     if (!def || !def.usableInBattle) return { accepted: false, reason: 'INVALID_ITEM' };
 
-    const effect = consumableService.computeEffect(itemKey);
-    if (!effect) return { accepted: false, reason: 'INVALID_ITEM' };
+    const isHealItem = itemKey === 'HEALING_POTION' || itemKey === 'ERIS_RICE';
+    if (isHealItem && battle.round_number >= C.HEAL_LOCK_START_ROUND) {
+      return { accepted: false, reason: 'HEAL_LOCKED_LATE_ROUND' };
+    }
 
     const removed = await inventoryModel.removeItem(telegramId, battle.group_id, itemKey, 1);
     if (removed === null) return { accepted: false, reason: 'NO_ITEM' };
 
     const isChallenger = telegramId === battle.challenger_id;
     const playerStats = await playerStatsModel.getPlayerStats(telegramId, battle.group_id);
-
     const patch = {};
-    let newValue;
-    if (effect.stat === 'stamina') {
-      const current = isChallenger ? battle.challenger_stamina : battle.opponent_stamina;
-      newValue = Math.min(playerStats.max_stamina, current + effect.amount);
-      patch[isChallenger ? 'challenger_stamina' : 'opponent_stamina'] = newValue;
-    } else {
+    let effectLabel;
+    let activeEffects = Array.isArray(battle.active_effects) ? [...battle.active_effects] : [];
+    const effectsChanged = () => { patch.active_effects = activeEffects; };
+
+    if (itemKey === 'STAMINA_PILL' || itemKey === 'HEALING_POTION') {
+      const effect = consumableService.computeEffect(itemKey);
+      if (effect.stat === 'stamina') {
+        const current = isChallenger ? battle.challenger_stamina : battle.opponent_stamina;
+        patch[isChallenger ? 'challenger_stamina' : 'opponent_stamina'] = Math.min(playerStats.max_stamina, current + effect.amount);
+      } else {
+        const current = isChallenger ? battle.challenger_hp : battle.opponent_hp;
+        patch[isChallenger ? 'challenger_hp' : 'opponent_hp'] = Math.min(playerStats.max_hp, current + effect.amount);
+      }
+      effectLabel = effect.label;
+    } else if (itemKey === 'ERIS_RICE') {
+      const pct = def.healPercentMin + Math.random() * (def.healPercentMax - def.healPercentMin);
+      const amount = Math.round(playerStats.max_hp * pct);
       const current = isChallenger ? battle.challenger_hp : battle.opponent_hp;
-      newValue = Math.min(playerStats.max_hp, current + effect.amount);
-      patch[isChallenger ? 'challenger_hp' : 'opponent_hp'] = newValue;
+      patch[isChallenger ? 'challenger_hp' : 'opponent_hp'] = Math.min(playerStats.max_hp, current + amount);
+      effectLabel = `❤️ +${amount} سلامتی (${Math.round(pct * 100)}٪)`;
+    } else if (itemKey === 'CAT_DOLL') {
+      activeEffects.push({
+        side: isChallenger ? 'CHALLENGER' : 'OPPONENT', type: 'STAMINA_REGEN_BUFF',
+        roundsRemaining: def.durationRounds, amountPerRound: def.staminaPerRound,
+      });
+      effectsChanged();
+      effectLabel = `برای ${def.durationRounds} راند، هر راند ${def.staminaPerRound}+ استقامت`;
+    } else if (itemKey === 'POISON_SWAMP') {
+      activeEffects.push({
+        side: isChallenger ? 'OPPONENT' : 'CHALLENGER', type: 'POISON',
+        roundsRemaining: def.durationRounds, amountPerRound: def.opponentDamagePerRound,
+      });
+      activeEffects.push({
+        side: isChallenger ? 'CHALLENGER' : 'OPPONENT', type: 'POISON',
+        roundsRemaining: def.durationRounds, amountPerRound: def.selfDamagePerRound,
+      });
+      effectsChanged();
+      effectLabel = `فعال شد برای ${def.durationRounds} راند`;
+    } else if (itemKey === 'TRUTH_SCROLL') {
+      patch.hidden_report_side = isChallenger ? 'CHALLENGER' : 'OPPONENT';
+      effectLabel = `سلامتی شما در گزارش بعدی از حریف پنهان می‌شود`;
+    } else {
+      return { accepted: false, reason: 'INVALID_ITEM' };
     }
 
     await battleModel.updateLiveStats(battleId, patch);
 
     const items = pendingItems.get(battleId) || {};
     const list = items[telegramId] || [];
-    list.push(`${def.emoji || '📦'} ${def.label} (${effect.label})`);
+    list.push(`${def.emoji || '📦'} ${def.label} (${effectLabel})`);
     items[telegramId] = list;
     pendingItems.set(battleId, items);
 
-    return { accepted: true, effect, newValue };
+    return { accepted: true, effect: { label: effectLabel }, itemDef: def };
   }
 
   async function forceResolveRound(battleId, chatId) {
@@ -249,34 +315,42 @@ function createBattleManager(bot) {
 
     const moves = pendingMoves.get(battleId) || {};
     if (!moves[battle.challenger_id]) {
-      moves[battle.challenger_id] = engine.autoDefensiveMove(battle.challenger_stamina);
+      moves[battle.challenger_id] = { move: engine.autoDefensiveMove(battle.challenger_stamina), submittedAt: Date.now() };
     }
     if (!moves[battle.opponent_id]) {
-      moves[battle.opponent_id] = engine.autoDefensiveMove(battle.opponent_stamina);
+      moves[battle.opponent_id] = { move: engine.autoDefensiveMove(battle.opponent_stamina), submittedAt: Date.now() };
     }
     await resolveRound(battle, moves, chatId, true);
     clearRoundBookkeeping(battleId);
   }
 
-  /** Builds and sends the "چه اتفاقی افتاد" report for the round that just resolved (spec §8). */
-  async function sendRoundReport(battle, chatId, { challenger, opponent, cMove, oMove, aDamageDealt, bDamageDealt, log, newChallengerHp, newOpponentHp, newChallengerStamina, newOpponentStamina }) {
+  async function sendRoundReport(battle, chatId, ctx) {
+    const {
+      challenger, opponent, cMove, oMove, aDamageDealt, bDamageDealt, log,
+      newChallengerHp, newOpponentHp, newChallengerStamina, newOpponentStamina,
+      specialEffects, hiddenReportSide,
+    } = ctx;
+
     const itemsThisRound = pendingItems.get(battle.id) || {};
     const cItems = itemsThisRound[battle.challenger_id] || [];
     const oItems = itemsThisRound[battle.opponent_id] || [];
+
+    const displayADamage = specialEffects?.fakeChallengerDisplayDamage ?? aDamageDealt;
+    const displayBDamage = specialEffects?.fakeOpponentDisplayDamage ?? bDamageDealt;
 
     let text = `📋 <b>گزارش راند ${battle.round_number}</b>\n\n`;
 
     text +=
       `👤 ${escapeHtml(challenger.display_name)}\n` +
       `🎴 حرکت: ${cMove ? getCardLabel(cMove) : 'بدون واکنش (بی‌رمق)'}\n` +
-      `💥 آسیب واردشده به حریف: ${num(aDamageDealt)}\n` +
+      `💥 آسیب واردشده به حریف: ${num(displayADamage)}\n` +
       (cItems.length ? `🎒 آیتم مصرف‌شده: ${cItems.join('، ')}\n` : '') +
       `\n`;
 
     text +=
       `👤 ${escapeHtml(opponent.display_name)}\n` +
       `🎴 حرکت: ${oMove ? getCardLabel(oMove) : 'بدون واکنش (بی‌رمق)'}\n` +
-      `💥 آسیب واردشده به حریف: ${num(bDamageDealt)}\n` +
+      `💥 آسیب واردشده به حریف: ${num(displayBDamage)}\n` +
       (oItems.length ? `🎒 آیتم مصرف‌شده: ${oItems.join('، ')}\n` : '') +
       `\n`;
 
@@ -284,67 +358,179 @@ function createBattleManager(bot) {
       text += `📜 ${log.join('\n')}\n\n`;
     }
 
+    const challengerHpText = hiddenReportSide === 'CHALLENGER' ? '❓' : String(newChallengerHp);
+    const opponentHpText = hiddenReportSide === 'OPPONENT' ? '❓' : String(newOpponentHp);
+
     text +=
-      `❤️ سلامتی باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerHp} | ${escapeHtml(opponent.display_name)}: ${newOpponentHp}\n\n` +
+      `❤️ سلامتی باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${challengerHpText} | ${escapeHtml(opponent.display_name)}: ${opponentHpText}\n\n` +
       `⚡ استقامت باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerStamina} | ${escapeHtml(opponent.display_name)}: ${newOpponentStamina}`;
 
     await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' }).catch(() => {});
   }
 
-  async function resolveRound(battle, moves, chatId, wasTimeout = false) {
-    const cMove = moves[battle.challenger_id];
-    const oMove = moves[battle.opponent_id];
+  async function resolveRound(battle, moves) {
+    const chatId = battle.group_id;
+    const cEntry = moves[battle.challenger_id] || {};
+    const oEntry = moves[battle.opponent_id] || {};
+    const cMove = cEntry.move ?? null;
+    const oMove = oEntry.move ?? null;
+    const cAfk = !cMove;
+    const oAfk = !oMove;
 
-    const cAfk = cMove === null || cMove === undefined;
-    const oAfk = oMove === null || oMove === undefined;
+    const challenger = await userModel.getUser(battle.challenger_id);
+    const opponent = await userModel.getUser(battle.opponent_id);
 
-    const cStats = { attack: 0, defense: 0, speed: 0, critChance: 0, stamina: battle.challenger_stamina, hp: battle.challenger_hp };
-    const oStats = { attack: 0, defense: 0, speed: 0, critChance: 0, stamina: battle.opponent_stamina, hp: battle.opponent_hp };
+    // ---- Start-of-round: process poison / stamina-regen-buff / consume stun & guard-break ----
+    const rawEffects = Array.isArray(battle.active_effects) ? battle.active_effects : [];
+    let hpAdjustC = 0;
+    let hpAdjustO = 0;
+    let staminaAdjustC = 0;
+    let staminaAdjustO = 0;
+    let challengerWasStunned = false;
+    let opponentWasStunned = false;
+    let challengerGuardBrokenThisRound = false;
+    let opponentGuardBrokenThisRound = false;
+    const nextActiveEffects = [];
+    const effectLogLines = [];
 
-    // Pull real combat stats (attack/defense/speed/crit) from player_group_stats.
+    for (const eff of rawEffects) {
+      if (eff.type === 'POISON') {
+        if (eff.side === 'CHALLENGER') {
+          hpAdjustC -= eff.amountPerRound;
+          effectLogLines.push(`☠️ باتلاق سمی ${eff.amountPerRound} آسیب به ${escapeHtml(challenger.display_name)} زد.`);
+        } else {
+          hpAdjustO -= eff.amountPerRound;
+          effectLogLines.push(`☠️ باتلاق سمی ${eff.amountPerRound} آسیب به ${escapeHtml(opponent.display_name)} زد.`);
+        }
+        const remaining = eff.roundsRemaining - 1;
+        if (remaining > 0) nextActiveEffects.push({ ...eff, roundsRemaining: remaining });
+      } else if (eff.type === 'STAMINA_REGEN_BUFF') {
+        if (eff.side === 'CHALLENGER') staminaAdjustC += eff.amountPerRound;
+        else staminaAdjustO += eff.amountPerRound;
+        const remaining = eff.roundsRemaining - 1;
+        if (remaining > 0) nextActiveEffects.push({ ...eff, roundsRemaining: remaining });
+      } else if (eff.type === 'STUN') {
+        if (eff.side === 'CHALLENGER') challengerWasStunned = true;
+        else opponentWasStunned = true;
+        // fully consumed this round, never carried forward
+      } else if (eff.type === 'GUARD_BREAK') {
+        if (eff.side === 'CHALLENGER') challengerGuardBrokenThisRound = true;
+        else opponentGuardBrokenThisRound = true;
+        // fully consumed this round
+      }
+    }
+
     const cPlayer = await playerStatsModel.getPlayerStats(battle.challenger_id, battle.group_id);
     const oPlayer = await playerStatsModel.getPlayerStats(battle.opponent_id, battle.group_id);
-    Object.assign(cStats, statsSnapshot(cPlayer), { hp: battle.challenger_hp, stamina: battle.challenger_stamina });
-    Object.assign(oStats, statsSnapshot(oPlayer), { hp: battle.opponent_hp, stamina: battle.opponent_stamina });
+
+    const preHpC = Math.max(0, Math.min(cPlayer.max_hp, battle.challenger_hp + hpAdjustC));
+    const preHpO = Math.max(0, Math.min(oPlayer.max_hp, battle.opponent_hp + hpAdjustO));
+    const preStaminaC = Math.max(0, Math.min(cPlayer.max_stamina, battle.challenger_stamina + staminaAdjustC));
+    const preStaminaO = Math.max(0, Math.min(oPlayer.max_stamina, battle.opponent_stamina + staminaAdjustO));
+
+    const cStats = {
+      attack: cPlayer.attack, defense: cPlayer.defense, speed: cPlayer.speed,
+      critChance: Number(cPlayer.crit_chance), stamina: preStaminaC, hp: preHpC, maxHp: cPlayer.max_hp,
+    };
+    const oStats = {
+      attack: oPlayer.attack, defense: oPlayer.defense, speed: oPlayer.speed,
+      critChance: Number(oPlayer.crit_chance), stamina: preStaminaO, hp: preHpO, maxHp: oPlayer.max_hp,
+    };
 
     let aDamageDealt = 0;
     let bDamageDealt = 0;
-    let log = [];
+    let log = [...effectLogLines];
+    let specialEffects = null;
+    const useSpecial = specialCards.isSpecialMove(cMove) || specialCards.isSpecialMove(oMove);
+    const guardBrokenCtx = { challengerGuardBroken: challengerGuardBrokenThisRound, opponentGuardBroken: opponentGuardBrokenThisRound };
 
     if (!cAfk && !oAfk) {
-      const result = engine.resolveRound(cMove, cStats, oMove, oStats);
-      aDamageDealt = result.aDamageDealt;
-      bDamageDealt = result.bDamageDealt;
-      log = result.log;
+      if (useSpecial) {
+        const result = specialCards.resolveMixedRound(cMove, cStats, oMove, oStats, guardBrokenCtx);
+        aDamageDealt = result.aDamageDealt; bDamageDealt = result.bDamageDealt;
+        log.push(...result.log); specialEffects = result.effects;
+      } else {
+        const result = engine.resolveRound(cMove, cStats, oMove, oStats);
+        aDamageDealt = result.aDamageDealt; bDamageDealt = result.bDamageDealt;
+        log.push(...result.log);
+      }
     } else if (!cAfk && oAfk) {
-      // opponent has no stamina to even guard: challenger's move still costs stamina but always lands (undefended)
-      const result = engine.resolveRound(cMove, cStats, engine.MOVES.GUARD, oStats);
-      aDamageDealt = result.aDamageDealt;
-      log = result.log;
-      log.push('حریف آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
+      if (specialCards.isSpecialMove(cMove)) {
+        const result = specialCards.resolveMixedRound(cMove, cStats, engine.MOVES.GUARD, oStats, guardBrokenCtx);
+        aDamageDealt = result.aDamageDealt; log.push(...result.log); specialEffects = result.effects;
+      } else {
+        const result = engine.resolveRound(cMove, cStats, engine.MOVES.GUARD, oStats);
+        aDamageDealt = result.aDamageDealt; log.push(...result.log);
+      }
+      log.push(opponentWasStunned ? 'حریف توسط یک اثر ویژه بی‌حس شده بود و نتوانست واکنش نشان دهد!' : 'حریف آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
     } else if (cAfk && !oAfk) {
-      const result = engine.resolveRound(engine.MOVES.GUARD, cStats, oMove, oStats);
-      bDamageDealt = result.bDamageDealt;
-      log = result.log;
-      log.push('چالشگر آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
+      if (specialCards.isSpecialMove(oMove)) {
+        const result = specialCards.resolveMixedRound(engine.MOVES.GUARD, cStats, oMove, oStats, guardBrokenCtx);
+        bDamageDealt = result.bDamageDealt; log.push(...result.log); specialEffects = result.effects;
+      } else {
+        const result = engine.resolveRound(engine.MOVES.GUARD, cStats, oMove, oStats);
+        bDamageDealt = result.bDamageDealt; log.push(...result.log);
+      }
+      log.push(challengerWasStunned ? 'چالشگر توسط یک اثر ویژه بی‌حس شده بود و نتوانست واکنش نشان دهد!' : 'چالشگر آن‌قدر خسته بود که نتوانست واکنش نشان دهد!');
     } else {
       log.push('هر دو مبارز تلوتلو خوردند — این راند ضربهٔ مؤثری وارد نشد.');
     }
 
+    // Sylphy Heal — immediate + per-second-waiting (needs real submission timestamps).
+    let sylphyHealC = 0;
+    let sylphyHealO = 0;
+    if (cMove === 'SYLPHY_HEAL') {
+      const def = shopService.getItemDef('SYLPHY_HEAL');
+      const waitSeconds = oEntry.submittedAt
+        ? Math.max(0, Math.min(C.ROUND_TIMEOUT_SECONDS, (oEntry.submittedAt - cEntry.submittedAt) / 1000)) : 0;
+      sylphyHealC = def.immediateHeal + Math.floor(waitSeconds * def.healPerSecondWaiting);
+      log.push(`💚 درمانگری ${sylphyHealC} سلامتی برای ${escapeHtml(challenger.display_name)} بازیابی کرد.`);
+    }
+    if (oMove === 'SYLPHY_HEAL') {
+      const def = shopService.getItemDef('SYLPHY_HEAL');
+      const waitSeconds = cEntry.submittedAt
+        ? Math.max(0, Math.min(C.ROUND_TIMEOUT_SECONDS, (cEntry.submittedAt - oEntry.submittedAt) / 1000)) : 0;
+      sylphyHealO = def.immediateHeal + Math.floor(waitSeconds * def.healPerSecondWaiting);
+      log.push(`💚 درمانگری ${sylphyHealO} سلامتی برای ${escapeHtml(opponent.display_name)} بازیابی کرد.`);
+    }
+
     const cCostMove = cMove || engine.MOVES.GUARD;
     const oCostMove = oMove || engine.MOVES.GUARD;
-    const cCost = cAfk ? 0 : engine.STAMINA_COST[cCostMove];
-    const oCost = oAfk ? 0 : engine.STAMINA_COST[oCostMove];
+    const cCost = cAfk ? 0 : (specialCards.getMoveStaminaCost(cCostMove) ?? 0);
+    const oCost = oAfk ? 0 : (specialCards.getMoveStaminaCost(oCostMove) ?? 0);
+    const extraCostC = specialEffects?.extraStaminaCostChallenger || 0;
+    const extraCostO = specialEffects?.extraStaminaCostOpponent || 0;
 
-    const newChallengerHp = Math.max(0, battle.challenger_hp - bDamageDealt);
-    const newOpponentHp = Math.max(0, battle.opponent_hp - aDamageDealt);
-    const newChallengerStamina = Math.max(0, battle.challenger_stamina - cCost);
-    const newOpponentStamina = Math.max(0, battle.opponent_stamina - oCost);
+    const selfDamageC = specialEffects?.selfDamageChallenger || 0;
+    const selfDamageO = specialEffects?.selfDamageOpponent || 0;
 
-    const newChallengerAfkStreak = cAfk ? battle.challenger_afk_streak + 1 : 0;
-    const newOpponentAfkStreak = oAfk ? battle.opponent_afk_streak + 1 : 0;
+    let newChallengerHp = Math.max(0, Math.min(cPlayer.max_hp, preHpC - bDamageDealt - selfDamageC + sylphyHealC));
+    let newOpponentHp = Math.max(0, Math.min(oPlayer.max_hp, preHpO - aDamageDealt - selfDamageO + sylphyHealO));
+    if (specialEffects?.instantKillOpponent) newOpponentHp = 0;
+    if (specialEffects?.instantKillChallenger) newChallengerHp = 0;
 
-    // Fold any item-use lines into the persisted round log too, not just the chat report.
+    const newChallengerStamina = Math.max(0, preStaminaC - cCost - extraCostC);
+    const newOpponentStamina = Math.max(0, preStaminaO - oCost - extraCostO);
+
+    let newChallengerAfkStreak;
+    if (!cAfk) newChallengerAfkStreak = 0;
+    else if (challengerWasStunned) newChallengerAfkStreak = battle.challenger_afk_streak;
+    else newChallengerAfkStreak = battle.challenger_afk_streak + 1;
+
+    let newOpponentAfkStreak;
+    if (!oAfk) newOpponentAfkStreak = 0;
+    else if (opponentWasStunned) newOpponentAfkStreak = battle.opponent_afk_streak;
+    else newOpponentAfkStreak = battle.opponent_afk_streak + 1;
+
+    // Move-repeat lock for next round (spec §9) — clears if no real move was made.
+    const nextChallengerLockedMove = cAfk ? null : cMove;
+    const nextOpponentLockedMove = oAfk ? null : oMove;
+
+    if (specialEffects?.stunChallenger) nextActiveEffects.push({ side: 'CHALLENGER', type: 'STUN', roundsRemaining: 1 });
+    if (specialEffects?.stunOpponent) nextActiveEffects.push({ side: 'OPPONENT', type: 'STUN', roundsRemaining: 1 });
+    if (specialEffects?.guardBreakChallenger) nextActiveEffects.push({ side: 'CHALLENGER', type: 'GUARD_BREAK', roundsRemaining: 1 });
+    if (specialEffects?.guardBreakOpponent) nextActiveEffects.push({ side: 'OPPONENT', type: 'GUARD_BREAK', roundsRemaining: 1 });
+
     const itemsThisRound = pendingItems.get(battle.id) || {};
     const persistedLog = [...log];
     for (const telegramId of Object.keys(itemsThisRound)) {
@@ -356,13 +542,17 @@ function createBattleManager(bot) {
       challengerDamageDealt: aDamageDealt, opponentDamageDealt: bDamageDealt, log: persistedLog,
     });
 
-    const challenger = await userModel.getUser(battle.challenger_id);
-    const opponent = await userModel.getUser(battle.opponent_id);
+    const hiddenReportSide = battle.hidden_report_side || null;
 
     await sendRoundReport(battle, chatId, {
       challenger, opponent, cMove, oMove, aDamageDealt, bDamageDealt, log,
       newChallengerHp, newOpponentHp, newChallengerStamina, newOpponentStamina,
+      specialEffects, hiddenReportSide,
     });
+
+    if (hiddenReportSide) {
+      await battleModel.updateLiveStats(battle.id, { hidden_report_side: null });
+    }
 
     const battleOver =
       newChallengerHp <= 0 || newOpponentHp <= 0 ||
@@ -382,7 +572,6 @@ function createBattleManager(bot) {
       } else if (newOpponentHp <= 0 && newChallengerHp > 0) {
         winnerId = battle.challenger_id;
       } else {
-        // Tie or double-KO / round cap reached: higher remaining HP wins; true tie -> draw.
         if (newChallengerHp === newOpponentHp) winnerId = null;
         else winnerId = newChallengerHp > newOpponentHp ? battle.challenger_id : battle.opponent_id;
       }
@@ -393,6 +582,7 @@ function createBattleManager(bot) {
         opponentHp: newOpponentHp, opponentStamina: newOpponentStamina,
         challengerAfkStreak: newChallengerAfkStreak, opponentAfkStreak: newOpponentAfkStreak,
         state: battleModel.STATES.RESOLVING,
+        challengerLockedMove: null, opponentLockedMove: null, activeEffects: [],
       });
 
       const finished = await battleModel.finishBattle(battle.id, winnerId);
@@ -406,6 +596,8 @@ function createBattleManager(bot) {
       opponentHp: newOpponentHp, opponentStamina: newOpponentStamina,
       challengerAfkStreak: newChallengerAfkStreak, opponentAfkStreak: newOpponentAfkStreak,
       state: battleModel.STATES.WAITING_FOR_MOVES,
+      challengerLockedMove: nextChallengerLockedMove, opponentLockedMove: nextOpponentLockedMove,
+      activeEffects: nextActiveEffects,
     });
 
     const updatedBattle = await battleModel.getBattle(battle.id);
@@ -420,7 +612,6 @@ function createBattleManager(bot) {
     const opponent = await userModel.getUser(battle.opponent_id);
     const isDraw = battle.winner_id === null;
     const winnerId = battle.winner_id;
-    const loserId = winnerId === battle.challenger_id ? battle.opponent_id : battle.challenger_id;
 
     let cStats = await playerStatsModel.getPlayerStats(battle.challenger_id, battle.group_id);
     let oStats = await playerStatsModel.getPlayerStats(battle.opponent_id, battle.group_id);
@@ -444,6 +635,7 @@ function createBattleManager(bot) {
         roundNumber: battle.round_number, challengerHp: battle.challenger_hp, challengerStamina: battle.challenger_stamina,
         opponentHp: battle.opponent_hp, opponentStamina: battle.opponent_stamina,
         challengerAfkStreak: 0, opponentAfkStreak: 0, state: battleModel.STATES.FINISHED,
+        challengerLockedMove: null, opponentLockedMove: null, activeEffects: [],
       });
       cStats = await playerStatsModel.updatePlayerStats(battle.challenger_id, battle.group_id, { draws: cStats.draws + 1 });
       oStats = await playerStatsModel.updatePlayerStats(battle.opponent_id, battle.group_id, { draws: oStats.draws + 1 });
@@ -463,7 +655,7 @@ function createBattleManager(bot) {
       const streakResult = streakService.applyWinStreak(winnerStats.current_streak, winnerStats.best_streak);
       const streakMultiplier = streakService.getStreakMultiplier(streakResult.currentStreak);
 
-      const isUpset = loserStats.rating - winnerStats.rating >= 100; // winner beat a notably stronger foe
+      const isUpset = loserStats.rating - winnerStats.rating >= 100;
       const xpGain = Math.round(C.XP_PVP_WIN * streakMultiplier * rewardScale);
       const coinGain = Math.round(C.COINS_PVP_WIN * streakMultiplier * rewardScale);
       const respectGain = Math.round((2 + (isUpset ? 3 : 0)) * rewardScale);
@@ -497,7 +689,6 @@ function createBattleManager(bot) {
         xpDelta: loserXp2Gain, ratingDelta: -scaledRatingLoss, metadata: { battleId: battle.id },
       });
 
-      // Rage
       let rageGain = C.RAGE_PER_PVP_WIN + C.RAGE_PER_PVP_LOSS;
       if (isUpset) rageGain += C.RAGE_PER_UPSET_WIN;
       rageGain += streakService.getStreakRageBonus(streakResult.currentStreak);
@@ -506,12 +697,10 @@ function createBattleManager(bot) {
         await erisEventService.announceEvent(bot.telegram, rageResult.triggeredEvent, chatId);
       }
 
-      // Achievements
       if (winnerStats.wins === 1) await achievementModel.unlock(winnerUser.telegram_id, battle.group_id, 'FIRST_BLOOD');
       if (streakResult.hitAchievementThreshold) await achievementModel.unlock(winnerUser.telegram_id, battle.group_id, 'UNSTOPPABLE');
       if (isUpset) await achievementModel.unlock(winnerUser.telegram_id, battle.group_id, 'UNDERDOG');
 
-      // Daily challenge progress (spec §21)
       await dailyChallengeService.onDuelWin(winnerUser.telegram_id, battle.group_id, { beatHigherRated: isUpset });
 
       resultText +=
