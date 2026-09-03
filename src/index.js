@@ -102,6 +102,10 @@ cron.schedule('*/30 * * * * *', () => {
     console.error('[cron] sweepExpiredEvents failed:', err);
   });
 });
+bot.launch().then(() => {
+  // eslint-disable-next-line no-console
+  console.log('[bootstrap] Eris — Sword Path is online.');
+});
 
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
