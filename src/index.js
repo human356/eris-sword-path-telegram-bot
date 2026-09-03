@@ -10,6 +10,9 @@ const callbackGuard = require('./bot/middlewares/callbackGuard');
 const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
 const inventoryCommand = require('./bot/commands/inventory');
+const { createMultiplayerBattleManager } = require('./battle/multiplayerBattleManager');
+const multiplayerBattleManager = createMultiplayerBattleManager(bot);
+
 
 if (!env.BOT_TOKEN) {
   // eslint-disable-next-line no-console
@@ -68,6 +71,7 @@ bot.start(async (ctx) => {
 // Commands
 require('./bot/commands/profile').register(bot);
 require('./bot/commands/fight').register(bot, battleManager);
+require('./bot/commands/multiplayerCommands').register(bot, multiplayerBattleManager);
 require('./bot/commands/train').register(bot);
 require('./bot/commands/leaderboard').register(bot);
 require('./bot/commands/rankStats').register(bot);
@@ -92,6 +96,12 @@ cron.schedule('*/15 * * * * *', () => {
   battleManager.sweepExpiredChallenges().catch((err) => {
     // eslint-disable-next-line no-console
     console.error('[cron] sweepExpiredChallenges failed:', err);
+  });
+});
+ // Sweep multiplayer lobbies that never got enough players, every 15s.
+    cron.schedule('*/15 * * * * *', () => {
+    multiplayerBattleManager.sweepExpiredRecruiting().catch((err) => {
+    console.error('[cron] sweepExpiredRecruiting failed:', err);
   });
 });
 

@@ -49,7 +49,7 @@ module.exports = {
   DODGE_STAMINA_COST: 20,
   COUNTER_STAMINA_COST: 15,
 
-  // ---------- Combat tuning ----------
+   // ---------- Combat tuning ----------
   HEAVY_ATTACK_DAMAGE_MULTIPLIER: 1.8,
   HEAVY_ATTACK_ACCURACY: 0.70, // lower accuracy than a normal attack
   ATTACK_ACCURACY: 0.90,
@@ -143,7 +143,7 @@ module.exports = {
   TRAINING_STAMINA_COST: 20,
   TRAINING_XP_REWARD: 20,
   TRAINING_STAT_GAIN_CHANCE: 0.35,
-  TRAINING_COOLDOWN_SECONDS: 18 * 60, // 18 minutes
+  TRAINING_COOLDOWN_SECONDS: 20 * 60, // 20 minutes
   TRAINING_TYPES: {
     STRENGTH: { stat: 'attack', label: '⚔️ Strength' },
     SPEED: { stat: 'speed', label: '💨 Speed' },
@@ -153,7 +153,7 @@ module.exports = {
 
   // ---------- Stamina regeneration (spec §4) ----------
   // Level 1: one stamina point every 5 minutes -> 1/5 point per minute.
-  STAMINA_REGEN_BASE_PER_MINUTE: 1 / 1,
+  STAMINA_REGEN_BASE_PER_MINUTE: 1 / 5,
   // Each level makes regen this much faster, relative to the base rate
   // (level L rate = BASE * (1 + SPEEDUP * (L - 1))) — level 21 regens 2x as
   // fast as level 1, for example.
@@ -182,4 +182,16 @@ module.exports = {
 
   // ---------- Misc ----------
   LEADERBOARD_PAGE_SIZE: 10,
+
+  // ---------- Multiplayer battle modes (spec §10) ----------
+  MULTIPLAYER_RECRUIT_SECONDS: 90,
+  FFA_MIN_PLAYERS: 3,
+  FFA_MAX_PLAYERS: 4,
+  FFA_MAX_ROUNDS: 25,
+  TEAM_MIN_PLAYERS: 4, // 2v2 minimum
+  TEAM_MAX_PLAYERS: 8, // 4v4 maximum
+  TEAM_MAX_ROUNDS: 32,
+  PVE_MAX_ROUNDS: 25,
+  PVE_XP_REWARD: 30,
+  PVE_COIN_REWARD: 40,
 };

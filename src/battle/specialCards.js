@@ -211,5 +211,6 @@ function resolveMixedRound(cMove, cStats, oMove, oStats, context = {}) {
 }
 
 module.exports = {
-  CARD_MOVE_KEYS, isSpecialMove, getCardMoveDef, getMoveStaminaCost, isOffensiveMove, resolveMixedRound,
+  CARD_MOVE_KEYS, isSpecialMove, getCardMoveDef, getMoveStaminaCost, isOffensiveMove,
+  computeOneDirection, resolveMixedRound,
 };
