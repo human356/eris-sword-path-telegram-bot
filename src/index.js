@@ -11,7 +11,6 @@ const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
 const inventoryCommand = require('./bot/commands/inventory');
 const { createMultiplayerBattleManager } = require('./battle/multiplayerBattleManager');
-const multiplayerBattleManager = createMultiplayerBattleManager(bot);
 
 
 if (!env.BOT_TOKEN) {
@@ -69,6 +68,7 @@ bot.start(async (ctx) => {
   );
 });
 // Commands
+const multiplayerBattleManager = createMultiplayerBattleManager(bot);
 require('./bot/commands/profile').register(bot);
 require('./bot/commands/fight').register(bot, battleManager);
 require('./bot/commands/multiplayerCommands').register(bot, multiplayerBattleManager);
