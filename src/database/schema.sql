@@ -216,3 +216,97 @@ CREATE TABLE IF NOT EXISTS processed_callbacks (
   callback_id       TEXT PRIMARY KEY,
   processed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Phase 1
+
+-- One row per (player, group, item). Item definitions themselves live in
+-- src/config/items.json, not in the DB — this table only tracks quantities.
+CREATE TABLE IF NOT EXISTS inventory_items (
+  telegram_id       BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+  group_id          BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  item_key          TEXT NOT NULL,
+  quantity          INTEGER NOT NULL DEFAULT 0,
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (telegram_id, group_id, item_key)
+);
+
+-- A player's 5 active battle-card slots ("جیب من" loadout). Starts out
+-- pre-filled with the 5 starter moves (ATTACK/GUARD/DODGE/HEAVY_ATTACK/COUNTER)
+-- the first time it's read — see cardLoadoutModel.getLoadout().
+CREATE TABLE IF NOT EXISTS player_loadout (
+  telegram_id       BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+  group_id          BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  slot              INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 5),
+  card_key          TEXT NOT NULL,
+  PRIMARY KEY (telegram_id, group_id, slot)
+);
+
+-- Ledger of shop purchases, used to enforce each item's dailyLimit from items.json.
+CREATE TABLE IF NOT EXISTS shop_purchase_log (
+  id                BIGSERIAL PRIMARY KEY,
+  telegram_id       BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+  group_id          BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  item_key          TEXT NOT NULL,
+  quantity          INTEGER NOT NULL,
+  purchased_date    DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_shop_purchase_lookup
+  ON shop_purchase_log (telegram_id, group_id, item_key, purchased_date);
+
+-- Phase 4
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS challenger_locked_move TEXT;
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS opponent_locked_move TEXT;
+
+-- Rolling list of in-progress timed effects: poison DOT (باتلاق سمی), the
+-- stamina-regen buff (عروسک گربه‌ای), one-round stun (رعد و برق / پری موفق),
+-- and one-round guard-break (دیوارشکن). Each entry looks like:
+--   { "side": "CHALLENGER" | "OPPONENT", "type": "POISON" | "STAMINA_REGEN_BUFF" | "STUN" | "GUARD_BREAK",
+--     "roundsRemaining": 3, "amountPerRound": 15 }
+-- Processed and decremented at the start of every round in battleManager.
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS active_effects JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Set by طومار پنهان کردن حقیقت: 'CHALLENGER' or 'OPPONENT' — that side's
+-- true HP is shown as "❓" instead of a number in the NEXT round report.
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS hidden_report_side TEXT;
+
+-- Phase 5
+CREATE TABLE IF NOT EXISTS multiplayer_battles (
+  id                BIGSERIAL PRIMARY KEY,
+  group_id          BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  type              TEXT NOT NULL, -- 'TEAM' | 'FFA' | 'PVE'
+  state             TEXT NOT NULL DEFAULT 'RECRUITING',
+  -- RECRUITING -> ACTIVE (players joining) -> WAITING_FOR_MOVES -> RESOLVING -> FINISHED / CANCELLED / EXPIRED
+  round_number      INTEGER NOT NULL DEFAULT 0,
+  max_rounds        INTEGER NOT NULL,
+  difficulty        TEXT, -- PVE only: 'EASY' | 'MEDIUM' | 'HARD'
+  initiator_id      BIGINT NOT NULL REFERENCES users(telegram_id),
+  chat_message_id   BIGINT,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  recruit_expires_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_mpb_group_state ON multiplayer_battles (group_id, state);
+
+-- One row per fighter, human or AI. `telegram_id` is NULL for the AI combatant
+-- in a PVE battle (identified by is_bot = TRUE instead).
+CREATE TABLE IF NOT EXISTS battle_participants (
+  id                BIGSERIAL PRIMARY KEY,
+  battle_id         BIGINT NOT NULL REFERENCES multiplayer_battles(id) ON DELETE CASCADE,
+  telegram_id       BIGINT REFERENCES users(telegram_id),
+  is_bot            BOOLEAN NOT NULL DEFAULT FALSE,
+  display_name      TEXT NOT NULL,
+  team              TEXT, -- 'A' | 'B' for TEAM battles, NULL otherwise
+  hp                INTEGER NOT NULL,
+  max_hp            INTEGER NOT NULL,
+  stamina           INTEGER NOT NULL,
+  max_stamina       INTEGER NOT NULL,
+  afk_streak        INTEGER NOT NULL DEFAULT 0,
+  locked_move       TEXT,
+  is_eliminated     BOOLEAN NOT NULL DEFAULT FALSE,
+  active_effects    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  joined_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bp_battle ON battle_participants (battle_id);
