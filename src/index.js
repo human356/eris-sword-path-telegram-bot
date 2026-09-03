@@ -103,10 +103,6 @@ cron.schedule('*/30 * * * * *', () => {
   });
 });
 
-bot.launch().then(() => {
-  // eslint-disable-next-line no-console
-  console.log('[bootstrap] Eris — Sword Path is online.');
-});
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
