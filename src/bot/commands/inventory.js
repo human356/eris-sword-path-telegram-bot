@@ -280,23 +280,44 @@ async function handleInventoryStart(ctx, payload) {
     'بازیکن';
 
   try {
-    await renderHome(
-      ctx,
-      telegramId,
-      groupId,
-      displayName
-    );
-  } catch (error) {
-    console.error(
-      '[INVENTORY] Failed to open inventory:',
-      error
-    );
+async function renderHome(
+  ctx,
+  telegramId,
+  groupId,
+  displayName,
+  { edit = false } = {}
+) {
+  const { text, items } = await buildInventoryText(
+    telegramId,
+    groupId,
+    displayName
+  );
 
-    await ctx.reply(
-      '⚠️ هنگام باز کردن «جیب من» مشکلی پیش آمد. دوباره امتحان کنید.'
-    );
+  const keyboard = homeKeyboard(groupId, items);
+
+  // اگر از داخل یک پیام PV ویرایش می‌کنیم
+  if (edit) {
+    try {
+      await ctx.editMessageText(text, {
+        parse_mode: 'HTML',
+        ...keyboard,
+      });
+
+      return;
+    } catch (error) {
+      console.log(
+        '[INVENTORY] editMessageText failed, sending new message:',
+        error.message
+      );
+    }
   }
 
+  // پیام جدید را مستقیماً در چت فعلی ارسال کن
+  await ctx.reply(text, {
+    parse_mode: 'HTML',
+    ...keyboard,
+  });
+}
   return true;
 }
 
