@@ -11,21 +11,13 @@ const consumableService = require('../../economy/consumableService');
 const { getCardLabel } = require('../../utils/cardLabels');
 const { num, escapeHtml } = require('../../utils/format');
 
-/**
- * نام کاربری ربات از ENV
- *
- * مثال:
- * BOT_USERNAME=MyGameBot
- *
- * بدون @
- */
 const BOT_USERNAME = process.env.BOT_USERNAME;
 
-/**
- * Deep Link مخصوص جیب من
- *
- * https://t.me/BOT_USERNAME?start=jib_GROUP_ID
- */
+
+/* =========================================================
+   DEEP LINK
+========================================================= */
+
 function getInventoryDeepLink(groupId) {
   if (!BOT_USERNAME) {
     throw new Error('BOT_USERNAME در ENV تنظیم نشده است.');
@@ -34,9 +26,37 @@ function getInventoryDeepLink(groupId) {
   return `https://t.me/${BOT_USERNAME}?start=jib_${groupId}`;
 }
 
-async function buildInventoryText(telegramId, groupId, displayName) {
-  const items = await inventoryModel.getInventory(telegramId, groupId);
-  const loadout = await cardLoadoutModel.getLoadout(telegramId, groupId);
+
+/* =========================================================
+   INVENTORY TEXT
+========================================================= */
+
+async function buildInventoryText(
+  telegramId,
+  groupId,
+  displayName
+) {
+  console.log(
+    `[INVENTORY] Loading inventory | user=${telegramId} | group=${groupId}`
+  );
+
+  const items = await inventoryModel.getInventory(
+    telegramId,
+    groupId
+  );
+
+  console.log(
+    `[INVENTORY] Inventory loaded | items=${items?.length ?? 'unknown'}`
+  );
+
+  const loadout = await cardLoadoutModel.getLoadout(
+    telegramId,
+    groupId
+  );
+
+  console.log(
+    `[INVENTORY] Loadout loaded | cards=${loadout?.length ?? 'unknown'}`
+  );
 
   let text = `🎒 <b>جیب من</b>\n`;
   text += `👤 ${escapeHtml(displayName)}\n\n`;
@@ -51,7 +71,7 @@ async function buildInventoryText(telegramId, groupId, displayName) {
 
   text += `<b>آیتم‌ها:</b>\n`;
 
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     text += `چیزی در جیب شما نیست. از /shop خرید کنید!`;
   } else {
     for (const row of items) {
@@ -64,7 +84,10 @@ async function buildInventoryText(telegramId, groupId, displayName) {
   }
 
   text += `\n`;
-  text += `<i>🔒 این بخش کاملاً خصوصی است — فقط شما آن را می‌بینید. مصرف/تعویض کارت فقط خارج از نبرد امکان‌پذیر است.</i>`;
+
+  text +=
+    `<i>🔒 این بخش کاملاً خصوصی است — فقط شما آن را می‌بینید. ` +
+    `مصرف/تعویض کارت فقط خارج از نبرد امکان‌پذیر است.</i>`;
 
   return {
     text,
@@ -73,10 +96,15 @@ async function buildInventoryText(telegramId, groupId, displayName) {
   };
 }
 
+
+/* =========================================================
+   HOME KEYBOARD
+========================================================= */
+
 function homeKeyboard(groupId, items) {
   const rows = [];
 
-  for (const row of items) {
+  for (const row of items || []) {
     const def = shopService.getItemDef(row.item_key);
 
     if (
@@ -104,8 +132,13 @@ function homeKeyboard(groupId, items) {
   return Markup.inlineKeyboard(rows);
 }
 
+
+/* =========================================================
+   SLOT PICKER KEYBOARD
+========================================================= */
+
 function slotPickerKeyboard(groupId, loadout) {
-  const rows = loadout.map((cardKey, i) => [
+  const rows = (loadout || []).map((cardKey, i) => [
     Markup.button.callback(
       `خانه ${i + 1}: ${getCardLabel(cardKey)}`,
       `jib:pick:${groupId}:${i + 1}`
@@ -122,8 +155,18 @@ function slotPickerKeyboard(groupId, loadout) {
   return Markup.inlineKeyboard(rows);
 }
 
-function cardChooserKeyboard(groupId, slot, ownedCards, currentCard) {
-  const rows = ownedCards.map((cardKey) => [
+
+/* =========================================================
+   CARD CHOOSER KEYBOARD
+========================================================= */
+
+function cardChooserKeyboard(
+  groupId,
+  slot,
+  ownedCards,
+  currentCard
+) {
+  const rows = (ownedCards || []).map((cardKey) => [
     Markup.button.callback(
       `${cardKey === currentCard ? '✅ ' : ''}${getCardLabel(cardKey)}`,
       `jib:set:${groupId}:${slot}:${cardKey}`
@@ -140,6 +183,11 @@ function cardChooserKeyboard(groupId, slot, ownedCards, currentCard) {
   return Markup.inlineKeyboard(rows);
 }
 
+
+/* =========================================================
+   RENDER HOME
+========================================================= */
+
 async function renderHome(
   ctx,
   telegramId,
@@ -147,54 +195,66 @@ async function renderHome(
   displayName,
   { edit = false } = {}
 ) {
+  console.log(
+    `[INVENTORY] renderHome | user=${telegramId} | group=${groupId} | edit=${edit}`
+  );
+
   const { text, items } = await buildInventoryText(
     telegramId,
     groupId,
     displayName
   );
 
-  const keyboard = homeKeyboard(groupId, items);
+  const keyboard = homeKeyboard(
+    groupId,
+    items
+  );
 
+  /*
+   * اگر از داخل دکمه آمده‌ایم، پیام قبلی را ویرایش می‌کنیم.
+   */
   if (edit) {
     try {
       await ctx.editMessageText(text, {
         parse_mode: 'HTML',
         ...keyboard,
       });
-    } catch {
-      await ctx.telegram.sendMessage(
-        telegramId,
-        text,
-        {
-          parse_mode: 'HTML',
-          ...keyboard,
-        }
-      );
-    }
 
-    return;
+      return;
+    } catch (error) {
+      console.log(
+        '[INVENTORY] editMessageText failed:',
+        error.message
+      );
+
+      /*
+       * اگر ویرایش پیام ممکن نبود، یک پیام جدید می‌فرستیم.
+       */
+    }
   }
 
-  await ctx.telegram.sendMessage(
-    telegramId,
-    text,
-    {
-      parse_mode: 'HTML',
-      ...keyboard,
-    }
-  );
+  /*
+   * این قسمت برای /start jib_... در PV است.
+   *
+   * ctx.reply() بهتر از ctx.telegram.sendMessage()
+   * است چون تلگرام خودش chat فعلی را مشخص می‌کند.
+   */
+  await ctx.reply(text, {
+    parse_mode: 'HTML',
+    ...keyboard,
+  });
 }
 
 
-/**
- * وقتی کاربر از داخل گروه روی «جیب من» می‌زند.
- *
- * دیگر مستقیماً تلاش نمی‌کنیم به PV پیام بفرستیم.
- * به‌جایش یک Deep Link می‌سازیم.
- */
+/* =========================================================
+   SHOW INVENTORY IN GROUP
+========================================================= */
+
 async function showInventory(ctx) {
-  const { user, groupId } = ctx.state;
-  const isCallback = ctx.updateType === 'callback_query';
+  const { groupId } = ctx.state;
+
+  const isCallback =
+    ctx.updateType === 'callback_query';
 
   try {
     const link = getInventoryDeepLink(groupId);
@@ -227,10 +287,13 @@ async function showInventory(ctx) {
       });
     }
   } catch (error) {
-    console.error('[INVENTORY] Deep Link error:', error);
+    console.error(
+      '[INVENTORY] Deep Link error:',
+      error
+    );
 
     const notice =
-      '⚠️ امکان باز کردن «جیب من» وجود ندارد. ' +
+      '⚠️ امکان باز کردن «جیب من» وجود ندارد.\n' +
       'لطفاً تنظیمات BOT_USERNAME را بررسی کنید.';
 
     if (isCallback) {
@@ -244,14 +307,18 @@ async function showInventory(ctx) {
 }
 
 
-/**
- * این تابع را از هندلر /start اصلی صدا می‌زنیم.
- *
- * payload:
- * jib_-100123456789
- */
-async function handleInventoryStart(ctx, payload) {
-  if (!payload || !payload.startsWith('jib_')) {
+/* =========================================================
+   HANDLE /START jib_...
+========================================================= */
+
+async function handleInventoryStart(
+  ctx,
+  payload
+) {
+  if (
+    !payload ||
+    !payload.startsWith('jib_')
+  ) {
     return false;
   }
 
@@ -266,12 +333,6 @@ async function handleInventoryStart(ctx, payload) {
     return true;
   }
 
-  /**
-   * بسیار مهم:
-   *
-   * اینجا telegramId را از خود PV می‌گیریم،
-   * نه از گروه.
-   */
   const telegramId = ctx.from.id;
 
   const displayName =
@@ -279,53 +340,56 @@ async function handleInventoryStart(ctx, payload) {
     ctx.from.username ||
     'بازیکن';
 
-  try {
-async function renderHome(
-  ctx,
-  telegramId,
-  groupId,
-  displayName,
-  { edit = false } = {}
-) {
-  const { text, items } = await buildInventoryText(
-    telegramId,
-    groupId,
-    displayName
+  console.log(
+    `[INVENTORY] Deep Link received | user=${telegramId} | group=${groupId}`
   );
 
-  const keyboard = homeKeyboard(groupId, items);
+  try {
+    await renderHome(
+      ctx,
+      telegramId,
+      groupId,
+      displayName
+    );
 
-  // اگر از داخل یک پیام PV ویرایش می‌کنیم
-  if (edit) {
-    try {
-      await ctx.editMessageText(text, {
-        parse_mode: 'HTML',
-        ...keyboard,
-      });
+    console.log(
+      `[INVENTORY] Successfully opened | user=${telegramId} | group=${groupId}`
+    );
+  } catch (error) {
+    console.error(
+      '[INVENTORY] Failed to open inventory:'
+    );
 
-      return;
-    } catch (error) {
-      console.log(
-        '[INVENTORY] editMessageText failed, sending new message:',
-        error.message
-      );
-    }
+    console.error(error);
+
+    /*
+     * برای اینکه بفهمیم دقیقاً مشکل چیست،
+     * خطای واقعی را فعلاً در پیام هم نمایش می‌دهیم.
+     */
+    const errorMessage =
+      error?.message ||
+      String(error);
+
+    await ctx.reply(
+      '⚠️ هنگام باز کردن «جیب من» مشکلی پیش آمد.\n\n' +
+      `🔧 خطا: ${errorMessage}`
+    );
   }
 
-  // پیام جدید را مستقیماً در چت فعلی ارسال کن
-  await ctx.reply(text, {
-    parse_mode: 'HTML',
-    ...keyboard,
-  });
-}
   return true;
 }
 
 
+/* =========================================================
+   REGISTER
+========================================================= */
+
 function register(bot) {
-  // =========================================================
-  // GROUP
-  // =========================================================
+
+  /* -------------------------------------------------------
+     /inventory
+     /jibeman
+  ------------------------------------------------------- */
 
   bot.command(
     ['inventory', 'jibeman'],
@@ -336,6 +400,11 @@ function register(bot) {
     }
   );
 
+
+  /* -------------------------------------------------------
+     MENU INVENTORY
+  ------------------------------------------------------- */
+
   bot.action(
     'menu:inventory',
     async (ctx) => {
@@ -344,14 +413,14 @@ function register(bot) {
   );
 
 
-  // =========================================================
-  // PRIVATE CALLBACKS
-  // =========================================================
+  /* -------------------------------------------------------
+     USE CONSUMABLE
+  ------------------------------------------------------- */
 
-  // مصرف آیتم
   bot.action(
     /^jib:use:([A-Z_]+):(-?\d+)$/,
     async (ctx) => {
+
       const itemKey = ctx.match[1];
       const groupId = Number(ctx.match[2]);
       const telegramId = ctx.from.id;
@@ -365,9 +434,7 @@ function register(bot) {
       if (activeBattle) {
         return ctx.answerCbQuery(
           'در حین نبرد باید آیتم را از همان‌جای مبارزه مصرف کنید.',
-          {
-            show_alert: true,
-          }
+          { show_alert: true }
         );
       }
 
@@ -381,30 +448,29 @@ function register(bot) {
       if (qty <= 0) {
         return ctx.answerCbQuery(
           'از این آیتم چیزی در جیب خود ندارید.',
-          {
-            show_alert: true,
-          }
+          { show_alert: true }
         );
       }
 
       const effect =
-        consumableService.computeEffect(itemKey);
+        consumableService.computeEffect(
+          itemKey
+        );
 
       if (!effect) {
         return ctx.answerCbQuery(
           'این آیتم به‌صورت مستقیم قابل مصرف نیست.',
-          {
-            show_alert: true,
-          }
+          { show_alert: true }
         );
       }
 
       const stats =
         (
-          await playerStatsModel.getOrCreatePlayerStats(
-            telegramId,
-            groupId
-          )
+          await playerStatsModel
+            .getOrCreatePlayerStats(
+              telegramId,
+              groupId
+            )
         ).stats;
 
       await inventoryModel.removeItem(
@@ -437,9 +503,7 @@ function register(bot) {
 
       await ctx.answerCbQuery(
         `✅ مصرف شد: ${effect.label}`,
-        {
-          show_alert: true,
-        }
+        { show_alert: true }
       );
 
       await renderHome(
@@ -449,21 +513,20 @@ function register(bot) {
         ctx.from.first_name ||
           ctx.from.username ||
           'بازیکن',
-        {
-          edit: true,
-        }
+        { edit: true }
       );
     }
   );
 
 
-  // =========================================================
-  // CARD EDITOR
-  // =========================================================
+  /* -------------------------------------------------------
+     EDIT CARDS
+  ------------------------------------------------------- */
 
   bot.action(
     /^jib:cards:(-?\d+)$/,
     async (ctx) => {
+
       const groupId = Number(ctx.match[1]);
       const telegramId = ctx.from.id;
 
@@ -479,26 +542,33 @@ function register(bot) {
         `🃏 <b>ویرایش کارت‌های نبرد</b>\n\n` +
         `خانه‌ای که می‌خواهید عوض کنید را انتخاب کنید:`;
 
-      await ctx
-        .editMessageText(
-          text,
-          {
-            parse_mode: 'HTML',
-            ...slotPickerKeyboard(
-              groupId,
-              loadout
-            ),
-          }
-        )
-        .catch(() => {});
+      await ctx.editMessageText(
+        text,
+        {
+          parse_mode: 'HTML',
+          ...slotPickerKeyboard(
+            groupId,
+            loadout
+          ),
+        }
+      ).catch((error) => {
+        console.error(
+          '[INVENTORY] Failed to show card slots:',
+          error
+        );
+      });
     }
   );
 
 
-  // بازگشت به جیب
+  /* -------------------------------------------------------
+     BACK TO HOME
+  ------------------------------------------------------- */
+
   bot.action(
     /^jib:home:(-?\d+)$/,
     async (ctx) => {
+
       const groupId = Number(ctx.match[1]);
 
       await ctx.answerCbQuery();
@@ -510,18 +580,20 @@ function register(bot) {
         ctx.from.first_name ||
           ctx.from.username ||
           'بازیکن',
-        {
-          edit: true,
-        }
+        { edit: true }
       );
     }
   );
 
 
-  // انتخاب خانه کارت
+  /* -------------------------------------------------------
+     PICK CARD SLOT
+  ------------------------------------------------------- */
+
   bot.action(
     /^jib:pick:(-?\d+):([1-5])$/,
     async (ctx) => {
+
       const groupId = Number(ctx.match[1]);
       const slot = Number(ctx.match[2]);
       const telegramId = ctx.from.id;
@@ -543,28 +615,35 @@ function register(bot) {
       const text =
         `🃏 خانه ${slot} — کارت مورد نظر را انتخاب کنید:`;
 
-      await ctx
-        .editMessageText(
-          text,
-          {
-            parse_mode: 'HTML',
-            ...cardChooserKeyboard(
-              groupId,
-              slot,
-              owned,
-              loadout[slot - 1]
-            ),
-          }
-        )
-        .catch(() => {});
+      await ctx.editMessageText(
+        text,
+        {
+          parse_mode: 'HTML',
+          ...cardChooserKeyboard(
+            groupId,
+            slot,
+            owned,
+            loadout[slot - 1]
+          ),
+        }
+      ).catch((error) => {
+        console.error(
+          '[INVENTORY] Failed to show card chooser:',
+          error
+        );
+      });
     }
   );
 
 
-  // تغییر کارت
+  /* -------------------------------------------------------
+     SET CARD
+  ------------------------------------------------------- */
+
   bot.action(
     /^jib:set:(-?\d+):([1-5]):([A-Z_]+)$/,
     async (ctx) => {
+
       const groupId = Number(ctx.match[1]);
       const slot = Number(ctx.match[2]);
       const cardKey = ctx.match[3];
@@ -579,9 +658,7 @@ function register(bot) {
       if (activeBattle) {
         return ctx.answerCbQuery(
           'در حین نبرد نمی‌توانید کارت‌ها را تغییر دهید. اول دوئل را تمام کنید.',
-          {
-            show_alert: true,
-          }
+          { show_alert: true }
         );
       }
 
@@ -594,9 +671,7 @@ function register(bot) {
       if (!owned.includes(cardKey)) {
         return ctx.answerCbQuery(
           'شما این کارت را ندارید.',
-          {
-            show_alert: true,
-          }
+          { show_alert: true }
         );
       }
 
@@ -621,22 +696,29 @@ function register(bot) {
         `🃏 <b>ویرایش کارت‌های نبرد</b>\n\n` +
         `خانه‌ای که می‌خواهید عوض کنید را انتخاب کنید:`;
 
-      await ctx
-        .editMessageText(
-          text,
-          {
-            parse_mode: 'HTML',
-            ...slotPickerKeyboard(
-              groupId,
-              loadout
-            ),
-          }
-        )
-        .catch(() => {});
+      await ctx.editMessageText(
+        text,
+        {
+          parse_mode: 'HTML',
+          ...slotPickerKeyboard(
+            groupId,
+            loadout
+          ),
+        }
+      ).catch((error) => {
+        console.error(
+          '[INVENTORY] Failed to refresh card slots:',
+          error
+        );
+      });
     }
   );
 }
 
+
+/* =========================================================
+   EXPORTS
+========================================================= */
 
 module.exports = {
   register,
