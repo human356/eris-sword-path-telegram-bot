@@ -33,18 +33,49 @@ async function ensureContext(ctx, next) {
   ctx.state = ctx.state || {};
   ctx.state.user = { telegramId: user.telegram_id, displayName: user.display_name, username: user.username };
 
-  if (!isGroup) {
-    ctx.state.isGroup = false;
 
-    if (ctx.callbackQuery) {
-      return next(); // private inline-button taps (جیب من) are allowed through
-    }
+if (!isGroup) {
+  ctx.state.isGroup = false;
 
-    if (ctx.updateType === 'message' && ctx.message && ctx.message.text && ctx.message.text.startsWith('/')) {
-      await ctx.reply('⚔️ اریس — Sword Path فقط داخل گروه تلگرام کار می‌کند. من را به یک گروه اضافه کنید و دوباره آنجا امتحان کنید!');
-    }
-    return;
+  // ----------------------------------------------------------
+  // Deep Link های خصوصی باید اجازه عبور داشته باشند.
+  // مثال:
+  // /start jib_-1001234567890
+  // ----------------------------------------------------------
+  if (
+    ctx.updateType === 'message' &&
+    ctx.message &&
+    typeof ctx.message.text === 'string' &&
+    ctx.message.text.startsWith('/start')
+  ) {
+    return next();
   }
+
+  // ----------------------------------------------------------
+  // Private callback queries
+  // برای دکمه‌های «جیب من» در PV
+  // ----------------------------------------------------------
+  if (ctx.callbackQuery) {
+    return next();
+  }
+
+  // ----------------------------------------------------------
+  // سایر دستورات خصوصی
+  // ----------------------------------------------------------
+  if (
+    ctx.updateType === 'message' &&
+    ctx.message &&
+    ctx.message.text &&
+    ctx.message.text.startsWith('/')
+  ) {
+    await ctx.reply(
+      '⚔️ اریس — Sword Path فقط داخل گروه تلگرام کار می‌کند. ' +
+      'من را به یک گروه اضافه کنید و دوباره آنجا امتحان کنید!'
+    );
+  }
+
+  return;
+}
 
   ctx.state.isGroup = true;
   ctx.state.groupId = ctx.chat.id;
