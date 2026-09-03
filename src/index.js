@@ -9,6 +9,7 @@ const callbackGuard = require('./bot/middlewares/callbackGuard');
 
 const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
+const inventoryCommand = require('./bot/commands/inventory');
 
 if (!env.BOT_TOKEN) {
   // eslint-disable-next-line no-console
@@ -35,7 +36,35 @@ app.get('/', (req, res) => {
 const server = app.listen(PORT, () => {
   console.log(`🌐 Health server running on port ${PORT}`);
 });
+// ============================================================
+// START / DEEP LINKS
+// ============================================================
 
+bot.start(async (ctx) => {
+  const payload =
+    ctx.message?.text?.split(' ').slice(1).join(' ') || '';
+
+  // Deep Link مخصوص «جیب من»
+  if (payload.startsWith('jib_')) {
+    const handled = await inventoryCommand.handleInventoryStart(
+      ctx,
+      payload
+    );
+
+    if (handled) return;
+  }
+
+  // ==========================================================
+  // START عادی ربات
+  // ==========================================================
+
+  // اگر /start عادی فعلی رباتت کدی دارد،
+  // آن کد را اینجا قرار بده.
+
+  await ctx.reply(
+    '⚔️ به Eris — Sword Path خوش آمدید!'
+  );
+});
 // Commands
 require('./bot/commands/profile').register(bot);
 require('./bot/commands/fight').register(bot, battleManager);
