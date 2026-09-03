@@ -30,7 +30,7 @@
     "label": "برنج اریس",
     "emoji": "🍚",
     "category": "CONSUMABLE",
-    "price": 500,
+    "price": 650,
     "dailyLimit": null,
     "stackLimit": 5,
     "healPercentMin": 0.05,
@@ -44,7 +44,7 @@
     "label": "عروسک گربه‌ای",
     "emoji": "🐈",
     "category": "CONSUMABLE",
-    "price": 350,
+    "price": 449,
     "dailyLimit": null,
     "stackLimit": null,
     "durationRounds": 6,
@@ -58,7 +58,7 @@
     "label": "باتلاق سمی",
     "emoji": "☠️",
     "category": "CONSUMABLE",
-    "price": 80,
+    "price": 190,
     "dailyLimit": null,
     "stackLimit": 10,
     "durationRounds": 3,
@@ -73,7 +73,7 @@
     "label": "طومار پنهان کردن حقیقت",
     "emoji": "📜",
     "category": "CONSUMABLE",
-    "price": 600,
+    "price": 712,
     "dailyLimit": null,
     "stackLimit": 5,
     "usableInBattle": true,
@@ -83,7 +83,7 @@
   },
 
   "METEOR_STRIKE": {
-    "label": "حمله شهابی",
+    "label": "کارت حمله شهابی",
     "emoji": "☄️",
     "category": "CARD",
     "isMove": true,
@@ -92,7 +92,7 @@
     "damageMultiplier": 3.0,
     "executeThreshold": 20,
     "executeChance": 0.70,
-    "price": 1200,
+    "price": 2800,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,
@@ -101,14 +101,14 @@
     "description": "حملهٔ فوق‌قدرتمند. خطای ۵٪. مصرف استامینا ۹۰. اگر حریف زیر ۲۰ استامینا داشته باشد، ۷۰٪ احتمال دارد یک‌ضرب حذف شود."
   },
   "FIREBALL": {
-    "label": "گلوله آتش",
+    "label": "کارت گلوله آتش",
     "emoji": "🔥",
     "category": "CARD",
     "isMove": true,
     "staminaCost": 45,
     "accuracy": 0.85,
     "damagePercentOfMaxHp": 0.30,
-    "price": 250,
+    "price": 500,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,
@@ -117,7 +117,7 @@
     "description": "۳۰٪ سلامتی حداکثر حریف را به‌صورت آسیب وارد می‌کند. مصرف استامینای نسبتاً بالا."
   },
   "DECEPTIVE_STRIKE": {
-    "label": "حملهٔ فریب‌دهنده",
+    "label": "کارت حملهٔ فریب‌دهنده",
     "emoji": "🎭",
     "category": "CARD",
     "isMove": true,
@@ -125,7 +125,7 @@
     "accuracy": 0.90,
     "damageMultiplier": 0.6,
     "fakeReportMultiplier": 0.3,
-    "price": 300,
+    "price": 780,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,
@@ -134,7 +134,7 @@
     "description": "برخلاف اسمش آسیب کمی وارد می‌کند، اما در گزارش راند به حریف یک عدد آسیب دروغین (کمتر از واقعی) نشان می‌دهد."
   },
   "ICE_SHIELD": {
-    "label": "سپر یخی",
+    "label": "کارت سپر یخی",
     "emoji": "🧊",
     "category": "CARD",
     "isMove": true,
@@ -149,7 +149,7 @@
     "description": "ساختهٔ رودیوس. هر حمله‌ای را کاملاً خنثی می‌کند، مصرف استامینا صفر، اما به خودتان آسیب می‌زند."
   },
   "SYLPHY_HEAL": {
-    "label": "درمانگری(سیلفی)",
+    "label": "کارت درمانگری(سیلفی)",
     "emoji": "💚",
     "category": "CARD",
     "isMove": true,
@@ -165,7 +165,7 @@
     "description": "ساختهٔ سیلفی. آسیبی به حریف وارد نمی‌کند. بلافاصله ۳۰ سلامتی می‌گیرید و تا زمانی که حریف حرکتش را انتخاب کند هر ثانیه ۸ سلامتی دیگر هم بازمی‌گردانید."
   },
   "MULTI_STRIKE": {
-    "label": "حملهٔ چند ضربهٔ سورزنی",
+    "label": "کارت حملهٔ چند ضربهٔ سورزنی",
     "emoji": "🌀",
     "category": "CARD",
     "isMove": true,
@@ -173,7 +173,7 @@
     "accuracy": 0.85,
     "damageMultiplier": 1.2,
     "splashDamageMultiplier": 0.3,
-    "price": 500,
+    "price": 900,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,
@@ -182,7 +182,7 @@
     "description": "آسیب نسبتاً قوی به حریف + آسیب کم به تا ۲ حریف دیگر (فقط در نبردهای چندنفره فعال می‌شود)."
   },
   "THUNDER_STRIKE": {
-    "label": "حملهٔ رعد و برقی(راکسی)",
+    "label": "کارت حملهٔ رعد و برقی(راکسی)",
     "emoji": "⚡",
     "category": "CARD",
     "isMove": true,
@@ -199,13 +199,13 @@
     "description": "ساختهٔ راکسی. آسیب کم به حریف و کمی به خودتان، اما حریف را برای راند بعد بی‌حس می‌کند (نمی‌تواند کارتی انتخاب کند)."
   },
   "SWORD_PARRY": {
-    "label": "پری کردن با شمشیر",
+    "label": "کارت پری کردن با شمشیر",
     "emoji": "🤺",
     "category": "CARD",
     "isMove": true,
     "staminaCost": 15,
     "parryStaminaPenalty": 40,
-    "price": 200,
+    "price": 1000,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,
@@ -214,12 +214,12 @@
     "description": "اگر حریف حمله کند، حمله‌اش را کاملاً خنثی می‌کنید و او راند بعد نمی‌تواند کارتی انتخاب کند. اگر حریف حمله نکند، پری بی‌نتیجه می‌ماند و استقامت زیادی از دست می‌دهید."
   },
   "WALL_BREAKER": {
-    "label": "دیوارشکن",
+    "label": "کارت دیوارشکن",
     "emoji": "🧱",
     "category": "CARD",
     "isMove": true,
     "staminaCost": 25,
-    "price": 220,
+    "price": 1500,
     "dailyLimit": null,
     "stackLimit": 1,
     "usableInBattle": false,

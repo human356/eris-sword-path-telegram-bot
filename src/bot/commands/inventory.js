@@ -86,27 +86,87 @@ async function renderHome(ctx, telegramId, groupId, displayName, { edit } = {}) 
 async function showInventory(ctx) {
   const { user, groupId } = ctx.state;
   const isCallback = ctx.updateType === 'callback_query';
+  const isPrivate = ctx.chat && ctx.chat.type === 'private';
 
   try {
-    await renderHome(ctx, user.telegramId, groupId, user.displayName);
-    if (isCallback) {
-      await ctx.answerCbQuery('📩 جیب شما به پیوی ارسال شد.');
-    } else {
-      await ctx.reply('📩 جیب شما به پیوی ارسال شد تا کسی جز خودتان آن را نبیند.');
+    // اگر در پیوی است، مستقیم نمایش بده
+    if (isPrivate) {
+      await renderHome(ctx, user.telegramId, groupId, user.displayName, { edit: false });
+      if (isCallback) {
+        await ctx.answerCbQuery('✅');
+      }
+      return;
     }
-  } catch {
-    const notice =
-      '⚠️ برای مشاهدهٔ «جیب من» باید اول ربات را در پیوی استارت کنید ' +
-      '(روی نام ربات بزنید و /start را بفرستید)، سپس دوباره اینجا امتحان کنید.';
+
+    // اگر در گروه است، Deep Link بفرست
+    await ctx.reply(
+      `📩 برای مشاهدهٔ جیب خصوصی خود، روی دکمه زیر کلیک کنید:\n\n` +
+      `یا دستور <code>/jib</code> را در پیوی ربات بفرستید.`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: Markup.inlineKeyboard([
+          [Markup.button.url('🎒 باز کردن جیب من', `https://t.me/${ctx.botInfo.username}?start=jib_${groupId}`)]
+        ])
+      }
+    );
+
     if (isCallback) {
-      await ctx.answerCbQuery(notice, { show_alert: true });
+      await ctx.answerCbQuery('📩 لینک جیب شما ارسال شد.');
+    }
+  } catch (err) {
+    console.error('[inventory] error:', err);
+    if (isCallback) {
+      await ctx.answerCbQuery('❌ خطایی رخ داد', { show_alert: true });
     } else {
-      await ctx.reply(notice);
+      await ctx.reply('❌ خطایی رخ داد');
     }
   }
 }
 
 function register(bot) {
+  // دستور /jib برای استفاده در پیوی
+  bot.command('jib', async (ctx) => {
+    const isPrivate = ctx.chat && ctx.chat.type === 'private';
+    if (!isPrivate) {
+      return ctx.reply('🔒 این دستور فقط در پیوی ربات کار می‌کند.');
+    }
+
+    const { user } = ctx.state;
+    
+    // اگر start parameter دارد (مثل /start jib_-1001234567)
+    const match = ctx.message.text.match(/\/jib(?:\s+(\S+))?/);
+    let groupId = match?.[1]; // ممکن است groupId در text باشد
+
+    if (!groupId && ctx.startPayload) {
+      // اگر از deep link آمد
+      const payload = ctx.startPayload;
+      if (payload.startsWith('jib_')) {
+        groupId = payload.slice(4);
+      }
+    }
+
+    // فالبک: اگر groupId نداریم، از آخرین گروه فعال استفاده کن
+    if (!groupId) {
+      const { rows } = await require('../../database/pool').query(
+        `SELECT DISTINCT group_id FROM player_group_stats 
+         WHERE telegram_id = $1 ORDER BY id DESC LIMIT 1`,
+        [user.telegramId]
+      );
+      if (rows[0]) {
+        groupId = rows[0].group_id;
+      } else {
+        return ctx.reply('❌ شما در هیچ گروهی جیب ندارید. ابتدا به گروهی که ربات فعال است بپیوندید.');
+      }
+    }
+
+    try {
+      await renderHome(ctx, user.telegramId, groupId, user.displayName, { edit: false });
+    } catch (err) {
+      console.error('[jib command] error:', err);
+      await ctx.reply('❌ خطایی رخ داد');
+    }
+  });
+
   bot.command(['inventory', 'jibeman'], async (ctx) => {
     if (!ctx.state.isGroup) return;
     await showInventory(ctx);
@@ -118,7 +178,6 @@ function register(bot) {
 
   // ---- Everything below runs over DM (private callback queries) ----
 
-  // Consume a stamina pill / healing potion outside of battle.
   bot.action(/^jib:use:([A-Z_]+):(-?\d+)$/, async (ctx) => {
     const itemKey = ctx.match[1];
     const groupId = Number(ctx.match[2]);
@@ -147,7 +206,6 @@ function register(bot) {
     await renderHome(ctx, telegramId, groupId, ctx.state.user.displayName, { edit: true });
   });
 
-  // Open the 5-slot picker.
   bot.action(/^jib:cards:(-?\d+)$/, async (ctx) => {
     const groupId = Number(ctx.match[1]);
     const telegramId = ctx.state.user.telegramId;
@@ -158,14 +216,12 @@ function register(bot) {
     await ctx.editMessageText(text, { parse_mode: 'HTML', ...slotPickerKeyboard(groupId, loadout) }).catch(() => {});
   });
 
-  // Back to the جیب من home view.
   bot.action(/^jib:home:(-?\d+)$/, async (ctx) => {
     const groupId = Number(ctx.match[1]);
     await ctx.answerCbQuery();
     await renderHome(ctx, ctx.state.user.telegramId, groupId, ctx.state.user.displayName, { edit: true });
   });
 
-  // Pick which card to put in a given slot.
   bot.action(/^jib:pick:(-?\d+):([1-5])$/, async (ctx) => {
     const groupId = Number(ctx.match[1]);
     const slot = Number(ctx.match[2]);
@@ -180,7 +236,6 @@ function register(bot) {
     ).catch(() => {});
   });
 
-  // Actually assign the card.
   bot.action(/^jib:set:(-?\d+):([1-5]):([A-Z_]+)$/, async (ctx) => {
     const groupId = Number(ctx.match[1]);
     const slot = Number(ctx.match[2]);

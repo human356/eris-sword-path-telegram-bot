@@ -30,8 +30,8 @@ module.exports = {
   },
 
   // ---------- Coins ----------
-  COINS_PVP_WIN: 120,
-  COINS_PVP_LOSS: 40,
+  COINS_PVP_WIN: 100,
+  COINS_PVP_LOSS: 10,
   COINS_TRAINING: 10,
   COINS_DAILY_MIN: 100,
   COINS_DAILY_MAX: 400,
@@ -143,7 +143,7 @@ module.exports = {
   TRAINING_STAMINA_COST: 20,
   TRAINING_XP_REWARD: 20,
   TRAINING_STAT_GAIN_CHANCE: 0.35,
-  TRAINING_COOLDOWN_SECONDS: 20 * 60, // 20 minutes
+  TRAINING_COOLDOWN_SECONDS: 18 * 60, // 18 minutes
   TRAINING_TYPES: {
     STRENGTH: { stat: 'attack', label: '⚔️ Strength' },
     SPEED: { stat: 'speed', label: '💨 Speed' },
@@ -153,7 +153,7 @@ module.exports = {
 
   // ---------- Stamina regeneration (spec §4) ----------
   // Level 1: one stamina point every 5 minutes -> 1/5 point per minute.
-  STAMINA_REGEN_BASE_PER_MINUTE: 1 / 5,
+  STAMINA_REGEN_BASE_PER_MINUTE: 1 / 1,
   // Each level makes regen this much faster, relative to the base rate
   // (level L rate = BASE * (1 + SPEEDUP * (L - 1))) — level 21 regens 2x as
   // fast as level 1, for example.
