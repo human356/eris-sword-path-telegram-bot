@@ -82,13 +82,23 @@ function register(bot) {
     const itemKey = ctx.match[1];
     const { user, groupId } = ctx.state;
 
-   
-try {
-  result = await shopService.buyItem(user.telegramId, groupId, itemKey, 1);
-} catch (err) {
-  console.error('[shop] buyItem failed:', err);
-  return ctx.answerCbQuery('⚠️ خطایی در خرید رخ داد. سکه‌های شما مسدود نشده، دوباره تلاش کنید یا با ادمین تماس بگیرید.', { show_alert: true });
-}
+    // FIX: `result` must be declared (let), otherwise — because this file is
+    // 'use strict' — assigning to it inside the try block throws a
+    // ReferenceError *after* shopService.buyItem() has already fully run
+    // (coins already spent, item already granted, purchase already logged).
+    // That ReferenceError was being swallowed by the catch below, which then
+    // told the user "your coins were NOT touched, try again" — a false
+    // message, since the purchase had in fact already gone through. This is
+    // exactly the "coins get deducted but nothing is granted (as far as the
+    // user can tell)" bug being reported.
+    let result;
+    try {
+      result = await shopService.buyItem(user.telegramId, groupId, itemKey, 1);
+    } catch (err) {
+      console.error('[shop] buyItem failed:', err);
+      return ctx.answerCbQuery('⚠️ خطایی در خرید رخ داد. سکه‌های شما مسدود نشده، دوباره تلاش کنید یا با ادمین تماس بگیرید.', { show_alert: true });
+    }
+
     if (!result.success) {
       const messages = {
         INVALID_ITEM: 'این آیتم در دسترس نیست.',
