@@ -23,9 +23,21 @@ async function getItemQuantity(telegramId, groupId, itemKey) {
 /**
  * Adds `amount` of an item, capped at `stackLimit` (defaults to effectively
  * unlimited). Returns the resulting quantity.
+ *
+ * IMPORTANT: items.json uses `"stackLimit": null` to mean "no cap" (e.g.
+ * CAT_DOLL, POISON_SWAMP has a real number but CAT_DOLL/BADGE-type items
+ * don't). A plain JS default parameter (`= Number.MAX_SAFE_INTEGER`) only
+ * kicks in for `undefined`, NOT for `null` — so callers passing
+ * `def.stackLimit` straight from items.json were sending a literal `NULL`
+ * into `LEAST($4, $5)` in Postgres, which collapses the whole expression to
+ * NULL and then fails the `quantity NOT NULL` constraint on
+ * inventory_items. That silently broke shop purchases (after coins were
+ * already spent!) and treasure chest rolls for any item with
+ * `stackLimit: null`. Normalizing here fixes every caller in one place.
  */
 async function addItem(telegramId, groupId, itemKey, amount, stackLimit = Number.MAX_SAFE_INTEGER) {
-  const limit = stackLimit == null ? Number.MAX_SAFE_INTEGER : stackLimit;
+  const limit = (stackLimit === null || stackLimit === undefined) ? Number.MAX_SAFE_INTEGER : stackLimit;
+
   const { rows } = await query(
     `INSERT INTO inventory_items (telegram_id, group_id, item_key, quantity, updated_at)
      VALUES ($1, $2, $3, LEAST($4, $5), now())
