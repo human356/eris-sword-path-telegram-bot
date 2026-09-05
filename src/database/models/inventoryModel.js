@@ -25,13 +25,14 @@ async function getItemQuantity(telegramId, groupId, itemKey) {
  * unlimited). Returns the resulting quantity.
  */
 async function addItem(telegramId, groupId, itemKey, amount, stackLimit = Number.MAX_SAFE_INTEGER) {
+  const limit = stackLimit == null ? Number.MAX_SAFE_INTEGER : stackLimit;
   const { rows } = await query(
     `INSERT INTO inventory_items (telegram_id, group_id, item_key, quantity, updated_at)
      VALUES ($1, $2, $3, LEAST($4, $5), now())
      ON CONFLICT (telegram_id, group_id, item_key) DO UPDATE
      SET quantity = LEAST(inventory_items.quantity + $4, $5), updated_at = now()
      RETURNING quantity`,
-    [telegramId, groupId, itemKey, amount, stackLimit]
+    [telegramId, groupId, itemKey, amount, limit]
   );
   return rows[0].quantity;
 }
