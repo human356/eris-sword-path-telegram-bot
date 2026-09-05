@@ -74,6 +74,7 @@ bot.start(async (ctx) => {
 });
 // Commands
 const multiplayerBattleManager = createMultiplayerBattleManager(bot);
+require('./bot/commands/erisTrigger').register(bot, multiplayerBattleManager);
 require('./bot/commands/profile').register(bot);
 require('./bot/commands/fight').register(bot, battleManager);
 require('./bot/commands/multiplayerCommands').register(bot, multiplayerBattleManager);
