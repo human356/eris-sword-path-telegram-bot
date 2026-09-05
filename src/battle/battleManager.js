@@ -25,6 +25,12 @@ const { getDuplicateOpponentRewardScale } = require('../utils/antiAbuse');
 const { getCardLabel } = require('../utils/cardLabels');
 const { num, escapeHtml } = require('../utils/format');
 const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
+// Phase 6: group-chat message cleanup. sendAutoDelete = default for most
+// messages this module sends (challenge invites, move-selection prompts).
+// sendPersist = the 2 exceptions this module is responsible for: the
+// per-round report (sendRoundReport) and the final duel result
+// (finalizeBattle) — see src/utils/messageCleanup.js for the full rationale.
+const { sendAutoDelete, sendPersist } = require('../utils/messageCleanup');
 
 // In-memory timers, keyed by battle id. A single bot process owns these;
 // all authoritative state still lives in Postgres (spec §28, §32).
@@ -83,7 +89,7 @@ function createBattleManager(bot) {
     `${escapeHtml(challengerUser.displayName)}:\n⚔️ ${rankLabel(challengerStats.sword_rank)}\n❤️ ${challengerStats.hp} سلامتی\n⚡ ${challengerStats.stamina} استقامت\n\n` +
     `${escapeHtml(opponentUser.displayName)}:\n⚔️ ${rankLabel(opponentStats.sword_rank)}\n❤️ ${opponentStats.hp} سلامتی\n⚡ ${opponentStats.stamina} استقامت`;
 
-    const sent = await bot.telegram.sendMessage(chatId, text, {
+    const sent = await sendAutoDelete(bot.telegram, chatId, text, {
       parse_mode: 'HTML',
       ...challengeKeyboard(battle.id),
     });
@@ -164,7 +170,7 @@ function createBattleManager(bot) {
       chatId, battle.chat_message_id, undefined, text,
       { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) }
     ).catch(() =>
-      bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) })
+      sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) })
     );
 
     clearTimer(roundTimers, battle.id);
@@ -365,7 +371,8 @@ function createBattleManager(bot) {
       `❤️ سلامتی باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${challengerHpText} | ${escapeHtml(opponent.display_name)}: ${opponentHpText}\n\n` +
       `⚡ استقامت باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerStamina} | ${escapeHtml(opponent.display_name)}: ${newOpponentStamina}`;
 
-    await bot.telegram.sendMessage(chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    // Persist — this IS "گزارش هر راند مبارزه", one of the 3 exempt categories.
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
   }
 
   async function resolveRound(battle, moves) {
@@ -718,7 +725,8 @@ function createBattleManager(bot) {
       }
     }
 
-    await bot.telegram.sendMessage(chatId, resultText, { parse_mode: 'HTML' });
+    // Persist — this IS "گزارش نهایی نتایج نبردها", one of the 3 exempt categories.
+    await sendPersist(bot.telegram, chatId, resultText, { parse_mode: 'HTML' });
   }
 
   async function sweepExpiredChallenges() {

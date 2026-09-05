@@ -106,7 +106,10 @@ function register(bot) {
 
       text += `\n\nEris: "${erisVoice.say('training_done')}"`;
 
-      await ctx.reply(
+      // Phase 6: this IS "گزارش نتیجه تمرین کاربر" — one of the 3 exempt
+      // categories, so it uses replyPersist (never auto-deleted) instead of
+      // the group-default auto-deleting ctx.reply.
+      await ctx.replyPersist(
         text,
         { parse_mode: 'HTML', ...mainMenu() }
       );

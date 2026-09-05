@@ -310,3 +310,29 @@ CREATE TABLE IF NOT EXISTS battle_participants (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bp_battle ON battle_participants (battle_id);
+
+-- Phase 6
+
+-- One global active row describing which DECORATIVE items.json keys the
+-- shop currently shows. Refreshed lazily (see decorativeRotationModel.js)
+-- whenever it's read and the previous row has expired — no cron needed.
+-- Global across all groups (confirmed: سراسری چرخش, not per-group).
+CREATE TABLE IF NOT EXISTS decorative_shop_rotation (
+  id            BIGSERIAL PRIMARY KEY,
+  item_keys     JSONB NOT NULL,
+  generated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at    TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_decorative_rotation_expires ON decorative_shop_rotation (expires_at DESC);
+
+-- A player's chosen decorative items shown on their /profile card, per group.
+-- Same shape as player_loadout: one row per filled slot,
+-- slot 1..PLAYER_SHOWCASE_SLOTS (3).
+CREATE TABLE IF NOT EXISTS player_showcase (
+  telegram_id   BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+  group_id      BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  slot          INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
+  item_key      TEXT NOT NULL,
+  PRIMARY KEY (telegram_id, group_id, slot)
+);

@@ -4,12 +4,17 @@ const { Markup } = require('telegraf');
 
 const inventoryModel = require('../../database/models/inventoryModel');
 const cardLoadoutModel = require('../../database/models/cardLoadoutModel');
+const showcaseModel = require('../../database/models/showcaseModel');
 const battleModel = require('../../database/models/battleModel');
 const playerStatsModel = require('../../database/models/playerStatsModel');
 const shopService = require('../../economy/shopService');
 const consumableService = require('../../economy/consumableService');
+const treasureChestService = require('../../economy/treasureChestService');
+const { sendAutoDelete } = require('../../utils/messageCleanup');
 const { getCardLabel } = require('../../utils/cardLabels');
 const { num, escapeHtml } = require('../../utils/format');
+const itemsCatalog = require('../../config/items.json');
+const C = require('../../config/constants');
 
 const BOT_USERNAME = process.env.BOT_USERNAME;
 
@@ -58,6 +63,8 @@ async function buildInventoryText(
     `[INVENTORY] Loadout loaded | cards=${loadout?.length ?? 'unknown'}`
   );
 
+  const showcase = await showcaseModel.getShowcase(telegramId, groupId);
+
   let text = `🎒 <b>جیب من</b>\n`;
   text += `👤 ${escapeHtml(displayName)}\n\n`;
 
@@ -85,6 +92,15 @@ async function buildInventoryText(
 
   text += `\n`;
 
+  // Phase 6: showcase slots — the ۳ decorative items shown on /profile.
+  text += `<b>🎨 ویترین پروفایل (${C.PLAYER_SHOWCASE_SLOTS} خانه):</b>\n`;
+  showcase.forEach((itemKey, i) => {
+    const def = itemKey ? itemsCatalog[itemKey] : null;
+    text += `${i + 1}. ${def ? `${def.emoji || '🎨'} ${def.label}` : '— خالی —'}\n`;
+  });
+
+  text += `\n`;
+
   text +=
     `<i>🔒 این بخش کاملاً خصوصی است — فقط شما آن را می‌بینید. ` +
     `مصرف/تعویض کارت فقط خارج از نبرد امکان‌پذیر است.</i>`;
@@ -93,6 +109,7 @@ async function buildInventoryText(
     text,
     items,
     loadout,
+    showcase,
   };
 }
 
@@ -122,10 +139,30 @@ function homeKeyboard(groupId, items) {
     }
   }
 
+  // Phase 6: treasure chest opening — only offered while the player owns at
+  // least one, and only openable here (never mid-battle, same as consumables).
+  const chestRow = (items || []).find((row) => row.item_key === 'TREASURE_CHEST' && row.quantity > 0);
+  if (chestRow) {
+    rows.push([
+      Markup.button.callback(
+        `🎁 باز کردن صندوقچهٔ گنج (${chestRow.quantity})`,
+        `jib:chest:${groupId}`
+      ),
+    ]);
+  }
+
   rows.push([
     Markup.button.callback(
       '🃏 ویرایش کارت‌های نبرد',
       `jib:cards:${groupId}`
+    ),
+  ]);
+
+  // Phase 6: showcase editor entry point.
+  rows.push([
+    Markup.button.callback(
+      '🎨 ویرایش ویترین پروفایل',
+      `jib:showcase:${groupId}`
     ),
   ]);
 
@@ -134,7 +171,7 @@ function homeKeyboard(groupId, items) {
 
 
 /* =========================================================
-   SLOT PICKER KEYBOARD
+   SLOT PICKER KEYBOARD (battle cards)
 ========================================================= */
 
 function slotPickerKeyboard(groupId, loadout) {
@@ -178,6 +215,59 @@ function cardChooserKeyboard(
       '🔙 بازگشت',
       `jib:cards:${groupId}`
     ),
+  ]);
+
+  return Markup.inlineKeyboard(rows);
+}
+
+
+/* =========================================================
+   SHOWCASE SLOT PICKER KEYBOARD  (Phase 6)
+========================================================= */
+
+function showcaseSlotPickerKeyboard(groupId, showcase) {
+  const rows = showcase.map((itemKey, i) => {
+    const def = itemKey ? itemsCatalog[itemKey] : null;
+    const label = def ? `${def.emoji || '🎨'} ${def.label}` : '— خالی —';
+    return [
+      Markup.button.callback(
+        `خانه ${i + 1}: ${label}`,
+        `jib:showcaseSlot:${groupId}:${i + 1}`
+      ),
+    ];
+  });
+
+  rows.push([
+    Markup.button.callback(
+      '🔙 بازگشت',
+      `jib:home:${groupId}`
+    ),
+  ]);
+
+  return Markup.inlineKeyboard(rows);
+}
+
+
+/* =========================================================
+   SHOWCASE ITEM CHOOSER KEYBOARD  (Phase 6)
+========================================================= */
+
+function showcaseChooserKeyboard(groupId, slot, ownedDecorativeKeys, currentKey) {
+  const rows = ownedDecorativeKeys.map((itemKey) => {
+    const def = itemsCatalog[itemKey];
+    return [
+      Markup.button.callback(
+        `${itemKey === currentKey ? '✅ ' : ''}${def.emoji || '🎨'} ${def.label}`,
+        `jib:showcaseSet:${groupId}:${slot}:${itemKey}`
+      ),
+    ];
+  });
+
+  rows.push([
+    Markup.button.callback('🗑 خالی کردن این خانه', `jib:showcaseSet:${groupId}:${slot}:NONE`),
+  ]);
+  rows.push([
+    Markup.button.callback('🔙 بازگشت', `jib:showcase:${groupId}`),
   ]);
 
   return Markup.inlineKeyboard(rows);
@@ -515,6 +605,178 @@ function register(bot) {
           'بازیکن',
         { edit: true }
       );
+    }
+  );
+
+
+  /* -------------------------------------------------------
+     OPEN TREASURE CHEST  (Phase 6)
+     Opens privately in DM ("جیب من فقط باز بشه"), but the result is
+     announced in the group ("نتیجه تو گروه اعلام بشه") — auto-deleted like
+     any other non-exempt group message, since it's a flex/announcement,
+     not a battle/round/training result.
+  ------------------------------------------------------- */
+
+  bot.action(
+    /^jib:chest:(-?\d+)$/,
+    async (ctx) => {
+
+      const groupId = Number(ctx.match[1]);
+      const telegramId = ctx.from.id;
+
+      const result = await treasureChestService.openChest(telegramId, groupId);
+
+      if (!result.success) {
+        return ctx.answerCbQuery(
+          'شما هیچ صندوقچه‌ای در جیب خود ندارید. از /shop بخرید!',
+          { show_alert: true }
+        );
+      }
+
+      await ctx.answerCbQuery('🎁 صندوقچه باز شد! نتیجه پایین‌تر آمده.');
+
+      const displayName =
+        ctx.from.first_name ||
+        ctx.from.username ||
+        'بازیکن';
+
+      const privateText =
+        `🎁 <b>نتیجهٔ باز کردن صندوقچهٔ گنج</b>\n\n` +
+        result.rewardLines.map((line, i) => `${i + 1}. ${line}`).join('\n');
+
+      await ctx.replyPersist(privateText, { parse_mode: 'HTML' });
+
+      const groupText =
+        `🎁 <b>${escapeHtml(displayName)}</b> یک صندوقچهٔ گنج افسانه‌ای باز کرد و این جوایز را گرفت:\n\n` +
+        result.rewardLines.join('\n');
+
+      await sendAutoDelete(ctx.telegram, groupId, groupText, { parse_mode: 'HTML' }).catch(() => {});
+
+      await renderHome(
+        ctx,
+        telegramId,
+        groupId,
+        displayName,
+        { edit: true }
+      );
+    }
+  );
+
+
+  /* -------------------------------------------------------
+     SHOWCASE: OPEN SLOT LIST  (Phase 6)
+  ------------------------------------------------------- */
+
+  bot.action(
+    /^jib:showcase:(-?\d+)$/,
+    async (ctx) => {
+
+      const groupId = Number(ctx.match[1]);
+      const telegramId = ctx.from.id;
+
+      await ctx.answerCbQuery();
+
+      const showcase = await showcaseModel.getShowcase(telegramId, groupId);
+
+      const text =
+        `🎨 <b>ویترین پروفایل</b>\n\n` +
+        `این ${C.PLAYER_SHOWCASE_SLOTS} خانه در /profile شما به بقیهٔ گروه نمایش داده می‌شود. ` +
+        `خانه‌ای که می‌خواهید تنظیم کنید را انتخاب کنید:`;
+
+      await ctx.editMessageText(text, {
+        parse_mode: 'HTML',
+        ...showcaseSlotPickerKeyboard(groupId, showcase),
+      }).catch((error) => {
+        console.error('[INVENTORY] Failed to show showcase slots:', error);
+      });
+    }
+  );
+
+
+  /* -------------------------------------------------------
+     SHOWCASE: PICK SLOT -> LIST OWNED DECORATIVE ITEMS  (Phase 6)
+  ------------------------------------------------------- */
+
+  bot.action(
+    /^jib:showcaseSlot:(-?\d+):([1-3])$/,
+    async (ctx) => {
+
+      const groupId = Number(ctx.match[1]);
+      const slot = Number(ctx.match[2]);
+      const telegramId = ctx.from.id;
+
+      await ctx.answerCbQuery();
+
+      const ownedItems = await inventoryModel.getInventory(telegramId, groupId);
+      const ownedDecorativeKeys = ownedItems
+        .filter((row) => {
+          const def = itemsCatalog[row.item_key];
+          return def && def.category === 'DECORATIVE' && row.quantity > 0;
+        })
+        .map((row) => row.item_key);
+
+      const showcase = await showcaseModel.getShowcase(telegramId, groupId);
+      const currentKey = showcase[slot - 1];
+
+      if (ownedDecorativeKeys.length === 0) {
+        await ctx.editMessageText(
+          `🎨 هنوز هیچ آیتم تزئینی‌ای ندارید. از بخش «🎨 تزئینات این هفته» در /shop یا از صندوقچهٔ گنج می‌توانید تهیه کنید.`,
+          {
+            parse_mode: 'HTML',
+            ...Markup.inlineKeyboard([[Markup.button.callback('🔙 بازگشت', `jib:showcase:${groupId}`)]]),
+          }
+        ).catch(() => {});
+        return;
+      }
+
+      const text = `🎨 خانه ${slot} — آیتم تزئینی مورد نظر را انتخاب کنید:`;
+
+      await ctx.editMessageText(text, {
+        parse_mode: 'HTML',
+        ...showcaseChooserKeyboard(groupId, slot, ownedDecorativeKeys, currentKey),
+      }).catch((error) => {
+        console.error('[INVENTORY] Failed to show showcase chooser:', error);
+      });
+    }
+  );
+
+
+  /* -------------------------------------------------------
+     SHOWCASE: SET SLOT  (Phase 6)
+  ------------------------------------------------------- */
+
+  bot.action(
+    /^jib:showcaseSet:(-?\d+):([1-3]):([A-Z_]+|NONE)$/,
+    async (ctx) => {
+
+      const groupId = Number(ctx.match[1]);
+      const slot = Number(ctx.match[2]);
+      const rawKey = ctx.match[3];
+      const telegramId = ctx.from.id;
+
+      if (rawKey !== 'NONE') {
+        const owned = await inventoryModel.getItemQuantity(telegramId, groupId, rawKey);
+        if (owned <= 0) {
+          return ctx.answerCbQuery('شما این آیتم را ندارید.', { show_alert: true });
+        }
+      }
+
+      await showcaseModel.setSlot(telegramId, groupId, slot, rawKey === 'NONE' ? null : rawKey);
+
+      await ctx.answerCbQuery(rawKey === 'NONE' ? '✅ خانه خالی شد.' : '✅ ویترین به‌روزرسانی شد!');
+
+      const showcase = await showcaseModel.getShowcase(telegramId, groupId);
+      const text =
+        `🎨 <b>ویترین پروفایل</b>\n\n` +
+        `این ${C.PLAYER_SHOWCASE_SLOTS} خانه در /profile شما به بقیهٔ گروه نمایش داده می‌شود. ` +
+        `خانه‌ای که می‌خواهید تنظیم کنید را انتخاب کنید:`;
+
+      await ctx.editMessageText(text, {
+        parse_mode: 'HTML',
+        ...showcaseSlotPickerKeyboard(groupId, showcase),
+      }).catch((error) => {
+        console.error('[INVENTORY] Failed to refresh showcase slots:', error);
+      });
     }
   );
 

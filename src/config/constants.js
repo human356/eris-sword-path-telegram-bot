@@ -194,4 +194,39 @@ module.exports = {
   PVE_MAX_ROUNDS: 25,
   PVE_XP_REWARD: 30,
   PVE_COIN_REWARD: 40,
+
+  // ================= PHASE 6 =================
+
+  // ---------- Group chat cleanup ----------
+  // Most bot messages sent into a GROUP chat are auto-deleted this long
+  // after being sent, to stop the group from getting cluttered (user
+  // request: "پاکسازی چت ربات در گروه‌ها"). The three exceptions — final
+  // battle result, per-round battle report, training result — are sent
+  // with the "persist" helper (src/utils/messageCleanup.js) instead and are
+  // never auto-deleted. Private/DM messages (e.g. «جیب من») are never
+  // touched by this at all — only group chats get cleaned up.
+  BOT_MESSAGE_AUTODELETE_MS: 10 * 60 * 1000, // 10 minutes
+
+  // ---------- Decorative items & weekly shop rotation ----------
+  DECORATIVE_ROTATION_SIZE: 5, // how many DECORATIVE items the shop shows at once
+  DECORATIVE_ROTATION_DAYS: 7, // how often the rotation refreshes (checked lazily, no cron needed)
+  PLAYER_SHOWCASE_SLOTS: 3, // how many decorative items a player can display on /profile
+
+  // ---------- Treasure Chest ----------
+  TREASURE_CHEST_ROLL_COUNT: 10, // number of independent loot rolls per chest opened
+  // Weighted loot table — weights are normalized against their own sum at
+  // roll time, they don't need to add up to 100. `type` drives
+  // treasureChestService.js's reward logic.
+  TREASURE_CHEST_LOOT_TABLE: [
+    { type: 'COINS', weight: 40, min: 50, max: 300 },
+    { type: 'XP', weight: 30, min: 30, max: 200 },
+    { type: 'CONSUMABLE_ITEM', weight: 15 },
+    { type: 'DECORATIVE_ITEM', weight: 10 },
+    { type: 'CARD_ITEM', weight: 5 },
+  ],
+  // If a CARD/DECORATIVE roll would give the player something they already
+  // own (both are stack-limited to 1), it's swapped for this consolation
+  // instead of being wasted — see spec §6.1.
+  TREASURE_CHEST_FALLBACK_COINS: 150,
+  TREASURE_CHEST_FALLBACK_XP: 80,
 };

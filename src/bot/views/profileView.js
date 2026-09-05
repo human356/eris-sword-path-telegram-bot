@@ -2,16 +2,30 @@
 const { xpRequiredForLevel, winRate } = require('../../utils/formulas');
 const { getRankByKey } = require('../../utils/rankUtil');
 const { num, escapeHtml } = require('../../utils/format');
+const itemsCatalog = require('../../config/items.json');
 
-function renderProfile(displayName, stats) {
+/** Phase 6: renders the player's chosen showcase items as one line, or '' if empty. */
+function renderShowcaseLine(showcaseItems) {
+  const filled = (showcaseItems || []).filter(Boolean);
+  if (filled.length === 0) return '';
+  const labels = filled.map((key) => {
+    const def = itemsCatalog[key];
+    return def ? `${def.emoji || '🎨'} ${def.label}` : key;
+  });
+  return `🎨 ویترین:\n${labels.join('\n')}`;
+}
+
+function renderProfile(displayName, stats, showcaseItems = []) {
   const rank = getRankByKey(stats.sword_rank);
   const requiredXp = xpRequiredForLevel(stats.level);
   const wr = Math.round(winRate(stats.wins, stats.losses) * 100);
   const critPct = Math.round(Number(stats.crit_chance) * 100);
+  const showcaseLine = renderShowcaseLine(showcaseItems);
 
   return (
     `⚔️ <b>SWORD PROFILE</b>\n\n` +
     `👤 ${escapeHtml(displayName)}\n\n` +
+    (showcaseLine ? `${showcaseLine}\n\n` : '') +
     `🏆 Sword Rank:\n${rank ? rank.label : stats.sword_rank}\n\n` +
     `⭐ Level:\n${stats.level}\n\n` +
     `✨ XP:\n${num(stats.xp)} / ${num(requiredXp)}\n\n` +

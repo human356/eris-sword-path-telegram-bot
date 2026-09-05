@@ -10,6 +10,13 @@ const achievementModel = require('../database/models/achievementModel');
 const erisVoice = require('../eris/erisVoice');
 const { erisEventKeyboard } = require('../bot/keyboards');
 const { num, escapeHtml } = require('../utils/format');
+// Phase 6: group-chat message cleanup. The Eris Challenge event's own
+// announcement/results messages are NOT one of the 3 exempt categories
+// named in the request (final battle result / round report / training
+// result) — an "event" isn't a "duel" in that literal sense — so both get
+// auto-deleted like everything else here. If that's not the intent, swap
+// `sendAutoDelete` for `sendPersist` in resolveEvent() below; it's a one-line change.
+const { sendAutoDelete } = require('../utils/messageCleanup');
 
 /**
  * Sends the "Eris Challenge started" message for a freshly created event row.
@@ -23,7 +30,7 @@ async function announceEvent(telegramClient, event, chatId) {
     `همه اعضای گروه می‌تونن شرکت کنن! هرکس یک حمله داره.\n` +
     `⏱ Event active for ${C.ERIS_EVENT_DURATION_MINUTES} minutes.`;
 
-  const sent = await telegramClient.sendMessage(chatId, text, { parse_mode: 'HTML', ...erisEventKeyboard(event.id) });
+  const sent = await sendAutoDelete(telegramClient, chatId, text, { parse_mode: 'HTML', ...erisEventKeyboard(event.id) });
   await eventModel.setChatMessageId(event.id, sent.message_id);
 }
 
@@ -89,7 +96,7 @@ async function resolveEvent(bot, event) {
   await rageModel.resetRage(groupId);
   await eventModel.finishEvent(event.id, { leaderboard });
 
-  await bot.telegram.sendMessage(groupId, text, { parse_mode: 'HTML' }).catch(() => {});
+  await sendAutoDelete(bot.telegram, groupId, text, { parse_mode: 'HTML' }).catch(() => {});
 }
 
 /** Cron-driven sweep: finds and resolves any Eris events whose timer has run out. */

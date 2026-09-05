@@ -6,6 +6,7 @@ const env = require('./config/env');
 
 const ensureContext = require('./bot/middlewares/ensureContext');
 const callbackGuard = require('./bot/middlewares/callbackGuard');
+const autoDeleteMiddleware = require('./bot/middlewares/autoDeleteMiddleware');
 
 const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
@@ -24,6 +25,10 @@ const battleManager = createBattleManager(bot);
 
 bot.use(callbackGuard);
 bot.use(ensureContext);
+// Phase 6: patches ctx.reply to auto-delete inside groups by default (chat
+// cleanup) and adds ctx.replyPersist for the 3 exempt message categories.
+// Must come after ensureContext, which sets ctx.state.isGroup.
+bot.use(autoDeleteMiddleware);
 const app = express();
 const PORT = 3000;
 

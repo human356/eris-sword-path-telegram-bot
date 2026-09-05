@@ -1,5 +1,6 @@
 'use strict';
 const playerStatsModel = require('../../database/models/playerStatsModel');
+const showcaseModel = require('../../database/models/showcaseModel');
 const { renderProfile, renderWelcome } = require('../views/profileView');
 const { mainMenu } = require('../keyboards');
 const { regenSince, staminaRegenRatePerMinute, hpRegenRatePerMinute } = require('../../utils/formulas');
@@ -36,8 +37,14 @@ function register(bot) {
     const { stats, created } = await playerStatsModel.getOrCreatePlayerStats(user.telegramId, groupId);
     const finalStats = await applyPassiveRegen(user.telegramId, groupId, stats);
 
-    const text = created ? renderWelcome(user.displayName, finalStats) : renderProfile(user.displayName, finalStats);
-    await ctx.reply(text, { parse_mode: 'HTML', ...mainMenu() });
+    if (created) {
+      await ctx.reply(renderWelcome(user.displayName, finalStats), { parse_mode: 'HTML', ...mainMenu() });
+      return;
+    }
+
+    // Phase 6: decorative showcase items chosen from «جیب من» are shown here.
+    const showcaseItems = await showcaseModel.getShowcase(user.telegramId, groupId);
+    await ctx.reply(renderProfile(user.displayName, finalStats, showcaseItems), { parse_mode: 'HTML', ...mainMenu() });
   });
 
   bot.action('menu:profile', async (ctx) => {
@@ -45,7 +52,8 @@ function register(bot) {
     const { user, groupId } = ctx.state;
     const stats = (await playerStatsModel.getOrCreatePlayerStats(user.telegramId, groupId)).stats;
     const finalStats = await applyPassiveRegen(user.telegramId, groupId, stats);
-    await ctx.reply(renderProfile(user.displayName, finalStats), { parse_mode: 'HTML', ...mainMenu() });
+    const showcaseItems = await showcaseModel.getShowcase(user.telegramId, groupId);
+    await ctx.reply(renderProfile(user.displayName, finalStats, showcaseItems), { parse_mode: 'HTML', ...mainMenu() });
   });
 }
 
