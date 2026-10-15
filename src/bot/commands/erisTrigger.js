@@ -19,7 +19,7 @@ function erisPanelKeyboard() {
       Markup.button.callback('🤺 مبارزه آزاد ۳ نفره', 'eris:ffa'),
     ],
     [
-      Markup.button.callback('🎯 نمرین', 'menu:training'),
+      Markup.button.callback('🏋️ تمرین', 'menu:training'),
     ]
     ,[
       Markup.button.callback('🎒 جیب من', 'menu:inventory'),
@@ -97,7 +97,7 @@ function register(bot, multiplayerBattleManager) {
       return ctx.answerCbQuery('⚔️ یک نبرد تیمی همین الان در حال جمع‌آوری نفرات است.', { show_alert: true });
     }
     await ctx.answerCbQuery();
-    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.TEAM, groupId, ctx.chat.id, user);
+    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.TEAM, groupId, ctx.chat.id, user, ctx.state.threadId || 0);
   });
 
   bot.action('eris:ffa', async (ctx) => {
@@ -110,7 +110,7 @@ function register(bot, multiplayerBattleManager) {
       return ctx.answerCbQuery('⚔️ یک نبرد آزاد همین الان در حال جمع‌آوری نفرات است.', { show_alert: true });
     }
     await ctx.answerCbQuery();
-    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.FFA, groupId, ctx.chat.id, user);
+    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.FFA, groupId, ctx.chat.id, user, ctx.state.threadId || 0);
   });
 }
 

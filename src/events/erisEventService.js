@@ -17,20 +17,25 @@ const { num, escapeHtml } = require('../utils/format');
 // auto-deleted like everything else here. If that's not the intent, swap
 // `sendAutoDelete` for `sendPersist` in resolveEvent() below; it's a one-line change.
 const { sendAutoDelete } = require('../utils/messageCleanup');
+const { threadExtra } = require('../utils/topic');
+const topicService = require('../services/topicService');
 
 /**
  * Sends the "Eris Challenge started" message for a freshly created event row.
  * `telegramClient` is Telegraf's `bot.telegram` (or `ctx.telegram`) — anything
  * exposing `.sendMessage`.
  */
-async function announceEvent(telegramClient, event, chatId) {
+async function announceEvent(telegramClient, event, chatId, originThreadId = 0) {
   const text =
     `⚔️ <b>ERIS CHALLENGE</b>\n\n` +
     `Eris:\n"${erisVoice.say('eris_event_start')}"\n\n` +
     `همه اعضای گروه می‌تونن شرکت کنن! هرکس یک حمله داره.\n` +
     `⏱ Event active for ${C.ERIS_EVENT_DURATION_MINUTES} minutes.`;
 
-  const sent = await sendAutoDelete(telegramClient, chatId, text, { parse_mode: 'HTML', ...erisEventKeyboard(event.id) });
+  // If an admin pinned the event section to certain topics, announce there.
+  const threadId = await topicService.resolveAnnounceThread(event.group_id, 'RAGE_EVENT', originThreadId || 0);
+  await eventModel.setThreadId(event.id, threadId);
+  const sent = await sendAutoDelete(telegramClient, chatId, text, { parse_mode: 'HTML', ...threadExtra(threadId), ...erisEventKeyboard(event.id) });
   await eventModel.setChatMessageId(event.id, sent.message_id);
 }
 
@@ -96,7 +101,7 @@ async function resolveEvent(bot, event) {
   await rageModel.resetRage(groupId);
   await eventModel.finishEvent(event.id, { leaderboard });
 
-  await sendAutoDelete(bot.telegram, groupId, text, { parse_mode: 'HTML' }).catch(() => {});
+  await sendAutoDelete(bot.telegram, groupId, text, { parse_mode: 'HTML', ...threadExtra(event.thread_id) }).catch(() => {});
 }
 
 /** Cron-driven sweep: finds and resolves any Eris events whose timer has run out. */

@@ -336,3 +336,27 @@ CREATE TABLE IF NOT EXISTS player_showcase (
   item_key      TEXT NOT NULL,
   PRIMARY KEY (telegram_id, group_id, slot)
 );
+
+-- Phase 7: Telegram forum topics
+-- Which topics (threads) a bot section is limited to. A feature with NO rows
+-- works everywhere. thread_id 0 = "General" topic / groups without topics.
+CREATE TABLE IF NOT EXISTS group_topic_rules (
+  group_id      BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  feature_key   TEXT NOT NULL,
+  thread_id     BIGINT NOT NULL DEFAULT 0,
+  PRIMARY KEY (group_id, feature_key, thread_id)
+);
+
+-- Topic names learned from service messages, only used to make the admin panel readable.
+CREATE TABLE IF NOT EXISTS group_topics (
+  group_id      BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  thread_id     BIGINT NOT NULL,
+  name          TEXT NOT NULL,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (group_id, thread_id)
+);
+
+-- Battles/events remember their topic so timer-driven messages land in the same place.
+ALTER TABLE battles ADD COLUMN IF NOT EXISTS thread_id BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE multiplayer_battles ADD COLUMN IF NOT EXISTS thread_id BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE events ADD COLUMN IF NOT EXISTS thread_id BIGINT NOT NULL DEFAULT 0;

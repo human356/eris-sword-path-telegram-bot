@@ -21,6 +21,7 @@ const { lobbyKeyboard, oneVsOneMoveKeyboard, ffaMoveKeyboard } = require('../bot
 // resolveTeamRound / resolveFfaRound) and the final result
 // (resolvePveRound's "🏁" branch + finishMultiplayerBattle).
 const { sendAutoDelete, sendPersist } = require('../utils/messageCleanup');
+const { threadExtra } = require('../utils/topic');
 
 const roundTimers = new Map();
 const recruitTimers = new Map();
@@ -71,10 +72,10 @@ function isLateRound(battle) {
 function createMultiplayerBattleManager(bot) {
   // ============================== LOBBY (FFA / TEAM) ==============================
 
-  async function startRecruiting(type, groupId, chatId, initiatorUser) {
+  async function startRecruiting(type, groupId, chatId, initiatorUser, threadId = 0) {
     const maxRounds = type === mpModel.TYPES.TEAM ? C.TEAM_MAX_ROUNDS : C.FFA_MAX_ROUNDS;
     const battle = await mpModel.createBattle({
-      groupId, type, maxRounds, initiatorId: initiatorUser.telegramId, recruitSeconds: C.MULTIPLAYER_RECRUIT_SECONDS,
+      groupId, type, maxRounds, initiatorId: initiatorUser.telegramId, recruitSeconds: C.MULTIPLAYER_RECRUIT_SECONDS, threadId,
     });
 
     const stats = (await playerStatsModel.getOrCreatePlayerStats(initiatorUser.telegramId, groupId)).stats;
@@ -93,7 +94,7 @@ function createMultiplayerBattleManager(bot) {
       `نیاز: حداقل ${minP}، حداکثر ${maxP} نفر\n\n` +
       `برای پیوستن دکمهٔ زیر را بزنید. ${Math.round(C.MULTIPLAYER_RECRUIT_SECONDS / 60)} دقیقه فرصت هست.`;
 
-    const sent = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...lobbyKeyboard(battle.id) });
+    const sent = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(threadId), ...lobbyKeyboard(battle.id) });
     await mpModel.setChatMessageId(battle.id, sent.message_id);
 
     recruitTimers.set(battle.id, setTimeout(() => resolveRecruitTimeout(battle.id, chatId).catch(() => {}), C.MULTIPLAYER_RECRUIT_SECONDS * 1000));
@@ -184,7 +185,7 @@ function createMultiplayerBattleManager(bot) {
       const teamB = participants.filter((p) => p.team === 'B').map((p) => p.display_name).join('، ');
       await sendAutoDelete(bot.telegram, chatId,
         `🔀 <b>قرعه‌کشی تیم‌ها</b>\n\n🔵 تیم A: ${escapeHtml(teamA)}\n🔴 تیم B: ${escapeHtml(teamB)}`,
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }
       ).catch(() => {});
     }
 
@@ -194,9 +195,9 @@ function createMultiplayerBattleManager(bot) {
 
   // ============================== PVE ==============================
 
-  async function startPveBattle(groupId, chatId, playerUser, difficulty) {
+  async function startPveBattle(groupId, chatId, playerUser, difficulty, threadId = 0) {
     const battle = await mpModel.createBattle({
-      groupId, type: mpModel.TYPES.PVE, maxRounds: C.PVE_MAX_ROUNDS, difficulty, initiatorId: playerUser.telegramId,
+      groupId, type: mpModel.TYPES.PVE, maxRounds: C.PVE_MAX_ROUNDS, difficulty, initiatorId: playerUser.telegramId, threadId,
     });
 
     const stats = (await playerStatsModel.getOrCreatePlayerStats(playerUser.telegramId, groupId)).stats;
@@ -214,7 +215,7 @@ function createMultiplayerBattleManager(bot) {
     pveSupplies.set(battle.id, aiOpponent.initialAiSupplies(difficulty));
 
     const updatedBattle = await mpModel.advanceRound(battle.id, 1, mpModel.STATES.WAITING_FOR_MOVES);
-    const sent = await sendAutoDelete(bot.telegram, chatId, `⚔️ <b>نبرد تمرینی با اریس شروع شد!</b> (سختی: ${difficultyLabel(difficulty)})`, { parse_mode: 'HTML' });
+    const sent = await sendAutoDelete(bot.telegram, chatId, `⚔️ <b>نبرد تمرینی با اریس شروع شد!</b> (سختی: ${difficultyLabel(difficulty)})`, { parse_mode: 'HTML', ...threadExtra(threadId) });
     await mpModel.setChatMessageId(battle.id, sent.message_id);
     await sendRoundPrompt(updatedBattle, chatId);
     return updatedBattle;
@@ -238,7 +239,7 @@ function createMultiplayerBattleManager(bot) {
         `👤 ${escapeHtml(human.display_name)}: ❤️ ${human.hp}  ⚡ ${human.stamina}\n` +
         `🗡 اریس: ❤️ ${alive.find((p) => p.is_bot).hp}  ⚡ ${alive.find((p) => p.is_bot).stamina}\n\n` +
         `حرکت خود را انتخاب کنید: (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)`;
-      const msg = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...oneVsOneMoveKeyboard(battle.id, loadout) });
+      const msg = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id), ...oneVsOneMoveKeyboard(battle.id, loadout) });
       await mpModel.setChatMessageId(battle.id, msg.message_id);
     } else if (battle.type === mpModel.TYPES.TEAM) {
       const teamA = alive.filter((p) => p.team === 'A');
@@ -256,7 +257,7 @@ function createMultiplayerBattleManager(bot) {
         `🔵 نمایندهٔ تیم A این راند: ${escapeHtml(championA.display_name)} (❤️ ${championA.hp} ⚡ ${championA.stamina})\n` +
         `🔴 نمایندهٔ تیم B این راند: ${escapeHtml(championB.display_name)} (❤️ ${championB.hp} ⚡ ${championB.stamina})\n\n` +
         `فقط این دو نفر این راند حرکت انتخاب می‌کنند. (⏱ ${C.ROUND_TIMEOUT_SECONDS} ثانیه)`;
-      const msg = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...oneVsOneMoveKeyboard(battle.id, combined) });
+      const msg = await sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id), ...oneVsOneMoveKeyboard(battle.id, combined) });
       await mpModel.setChatMessageId(battle.id, msg.message_id);
     } else {
       // FFA — every alive participant picks (move, target).
@@ -270,7 +271,7 @@ function createMultiplayerBattleManager(bot) {
       // Telegram can't show a different keyboard per person, so this shows
       // everyone (including yourself) — submitMove rejects self-targeting.
       const msg = await sendAutoDelete(bot.telegram, chatId, text, {
-        parse_mode: 'HTML', ...ffaMoveKeyboard(battle.id, combined, alive),
+        parse_mode: 'HTML', ...threadExtra(battle.thread_id), ...ffaMoveKeyboard(battle.id, combined, alive),
       });
       await mpModel.setChatMessageId(battle.id, msg.message_id);
     }
@@ -315,7 +316,6 @@ function createMultiplayerBattleManager(bot) {
     if (readyToResolve) {
       clearTimer(roundTimers, battleId);
       await resolveRound(battle, chatId);
-      clearRoundBookkeeping(battleId);
     }
 
     return { accepted: true, waiting: !readyToResolve };
@@ -385,20 +385,23 @@ function createMultiplayerBattleManager(bot) {
     const battle = await mpModel.getBattle(battleId);
     if (!battle || battle.state !== mpModel.STATES.WAITING_FOR_MOVES) return;
     await resolveRound(battle, chatId);
-    clearRoundBookkeeping(battleId);
   }
 
   async function resolveRound(battle, chatId) {
-    if (battle.type === mpModel.TYPES.PVE) return resolvePveRound(battle, chatId);
-    if (battle.type === mpModel.TYPES.TEAM) return resolveTeamRound(battle, chatId);
-    return resolveFfaRound(battle, chatId);
+    const round = { moves: pendingMoves.get(battle.id) || {}, items: pendingItems.get(battle.id) || {} };
+    clearRoundBookkeeping(battle.id);
+    // Blocks late button presses / the timeout while this round is being resolved.
+    await mpModel.setState(battle.id, mpModel.STATES.RESOLVING);
+    if (battle.type === mpModel.TYPES.PVE) return resolvePveRound(battle, chatId, round);
+    if (battle.type === mpModel.TYPES.TEAM) return resolveTeamRound(battle, chatId, round);
+    return resolveFfaRound(battle, chatId, round);
   }
 
-  async function resolvePveRound(battle, chatId) {
+  async function resolvePveRound(battle, chatId, round) {
     const participants = await mpModel.getParticipants(battle.id);
     const human = participants.find((p) => !p.is_bot);
     const bot_ = participants.find((p) => p.is_bot);
-    const moves = pendingMoves.get(battle.id) || {};
+    const moves = round.moves;
     const humanMove = moves[human.telegram_id]?.move || null;
 
     const supplies = pveSupplies.get(battle.id) || aiOpponent.initialAiSupplies(battle.difficulty);
@@ -431,7 +434,7 @@ function createMultiplayerBattleManager(bot) {
     const newBotStamina = Math.max(0, botStamina - botCost);
     const newHumanAfk = humanMove ? 0 : human.afk_streak + 1;
 
-    const itemsThisRound = (pendingItems.get(battle.id) || {})[human.telegram_id] || [];
+    const itemsThisRound = round.items[human.telegram_id] || [];
 
     const text =
       `📋 <b>گزارش راند ${battle.round_number}</b>\n\n` +
@@ -441,7 +444,7 @@ function createMultiplayerBattleManager(bot) {
       (log.length ? `📜 ${log.join('\n')}\n\n` : '') +
       `❤️ سلامتی: شما ${newHumanHp} | اریس ${newBotHp}\n⚡ استقامت: شما ${newHumanStamina} | اریس ${newBotStamina}`;
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
 
     await mpModel.updateParticipants([
       { id: human.id, patch: { hp: newHumanHp, stamina: newHumanStamina, afk_streak: newHumanAfk, locked_move: humanMove || null } },
@@ -461,7 +464,7 @@ function createMultiplayerBattleManager(bot) {
       // Persist — final battle result (exempt category).
       await sendPersist(bot.telegram, chatId,
         `🏁 <b>نبرد تمرینی تمام شد</b>\n\n${humanWon ? '🎉 شما بردید!' : '💀 اریس این بار برنده شد.'}\n\n⭐ +${xp} XP\n🪙 +${coins} سکه`,
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }
       ).catch(() => {});
       pveSupplies.delete(battle.id);
       return;
@@ -471,8 +474,8 @@ function createMultiplayerBattleManager(bot) {
     await sendRoundPrompt(updated, chatId);
   }
 
-  async function resolveTeamRound(battle, chatId) {
-    const moves = pendingMoves.get(battle.id) || {};
+  async function resolveTeamRound(battle, chatId, round) {
+    const moves = round.moves;
     const championAId = moves.__championA;
     const championBId = moves.__championB;
     const participants = await mpModel.getParticipants(battle.id);
@@ -509,7 +512,7 @@ function createMultiplayerBattleManager(bot) {
       (newHpA <= 0 ? `\n💀 ${escapeHtml(champA.display_name)} حذف شد!` : '') +
       (newHpB <= 0 ? `\n💀 ${escapeHtml(champB.display_name)} حذف شد!` : '');
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
 
     const allParticipants = await mpModel.getParticipants(battle.id);
     const teamAAlive = allParticipants.filter((p) => p.team === 'A' && !p.is_eliminated);
@@ -528,8 +531,8 @@ function createMultiplayerBattleManager(bot) {
     await sendRoundPrompt(updated, chatId);
   }
 
-  async function resolveFfaRound(battle, chatId) {
-    const moves = pendingMoves.get(battle.id) || {};
+  async function resolveFfaRound(battle, chatId, round) {
+    const moves = round.moves;
     const participants = await mpModel.getParticipants(battle.id);
     const alive = participants.filter((p) => !p.is_eliminated);
     const byId = Object.fromEntries(alive.map((p) => [p.telegram_id, p]));
@@ -595,7 +598,7 @@ function createMultiplayerBattleManager(bot) {
 
     const text = `📋 <b>گزارش راند ${battle.round_number}</b>\n\n${statusLines}` + (logLines.length ? `\n\n📜 ${logLines.join('\n')}` : '');
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
 
     const stillAlive = await mpModel.getParticipants(battle.id);
     const remaining = stillAlive.filter((p) => !p.is_eliminated);
@@ -630,7 +633,7 @@ function createMultiplayerBattleManager(bot) {
     }
 
     // Persist — final battle result (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
     clearRoundBookkeeping(battle.id);
   }
 

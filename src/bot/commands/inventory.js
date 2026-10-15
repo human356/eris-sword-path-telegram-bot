@@ -15,6 +15,8 @@ const { getCardLabel } = require('../../utils/cardLabels');
 const { num, escapeHtml } = require('../../utils/format');
 const itemsCatalog = require('../../config/items.json');
 const C = require('../../config/constants');
+const topicService = require('../../services/topicService');
+const { threadExtra } = require('../../utils/topic');
 
 const BOT_USERNAME = process.env.BOT_USERNAME;
 
@@ -23,12 +25,12 @@ const BOT_USERNAME = process.env.BOT_USERNAME;
    DEEP LINK
 ========================================================= */
 
-function getInventoryDeepLink(groupId) {
-  if (!BOT_USERNAME) {
+function getInventoryDeepLink(groupId, username = BOT_USERNAME) {
+  if (!username) {
     throw new Error('BOT_USERNAME در ENV تنظیم نشده است.');
   }
 
-  return `https://t.me/${BOT_USERNAME}?start=jib_${groupId}`;
+  return `https://t.me/${username}?start=jib_${groupId}`;
 }
 
 
@@ -347,7 +349,7 @@ async function showInventory(ctx) {
     ctx.updateType === 'callback_query';
 
   try {
-    const link = getInventoryDeepLink(groupId);
+    const link = getInventoryDeepLink(groupId, (ctx.botInfo && ctx.botInfo.username) || BOT_USERNAME);
 
     const keyboard = Markup.inlineKeyboard([
       [
@@ -462,7 +464,7 @@ async function handleInventoryStart(
 
     await ctx.reply(
       '⚠️ هنگام باز کردن «جیب من» مشکلی پیش آمد.\n\n' +
-      `🔧 خطا: ${errorMessage}`
+      'لطفاً کمی بعد دوباره تلاش کنید.'
     );
   }
 
@@ -650,7 +652,8 @@ function register(bot) {
         `🎁 <b>${escapeHtml(displayName)}</b> یک صندوقچهٔ گنج افسانه‌ای باز کرد و این جوایز را گرفت:\n\n` +
         result.rewardLines.join('\n');
 
-      await sendAutoDelete(ctx.telegram, groupId, groupText, { parse_mode: 'HTML' }).catch(() => {});
+      const announceThread = await topicService.resolveAnnounceThread(groupId, 'INVENTORY', 0).catch(() => 0);
+      await sendAutoDelete(ctx.telegram, groupId, groupText, { parse_mode: 'HTML', ...threadExtra(announceThread) }).catch(() => {});
 
       await renderHome(
         ctx,

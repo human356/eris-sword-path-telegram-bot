@@ -7,6 +7,8 @@ const env = require('./config/env');
 const ensureContext = require('./bot/middlewares/ensureContext');
 const callbackGuard = require('./bot/middlewares/callbackGuard');
 const autoDeleteMiddleware = require('./bot/middlewares/autoDeleteMiddleware');
+const topicGuard = require('./bot/middlewares/topicGuard');
+const { runMigration } = require('./database/migrate');
 
 const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
@@ -29,8 +31,10 @@ bot.use(ensureContext);
 // cleanup) and adds ctx.replyPersist for the 3 exempt message categories.
 // Must come after ensureContext, which sets ctx.state.isGroup.
 bot.use(autoDeleteMiddleware);
+// Topics: blocks sections an admin pinned to other forum topics (optional feature).
+bot.use(topicGuard);
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // صفحه اصلی
 app.get('/', (req, res) => {
@@ -47,7 +51,8 @@ const server = app.listen(PORT, () => {
 // START / DEEP LINKS
 // ============================================================
 
-bot.start(async (ctx) => {
+bot.start(async (ctx, next) => {
+  if (ctx.state && ctx.state.isGroup) return next();
   const payload =
     ctx.message?.text?.split(' ').slice(1).join(' ') || '';
 
@@ -88,6 +93,7 @@ require('./bot/commands/shop').register(bot);
 require('./bot/commands/inventory').register(bot);
 require('./bot/commands/help').register(bot);
 require('./bot/commands/admin').register(bot);
+require('./bot/commands/topics').register(bot);
 
 // Actions
 require('./bot/actions/battleActions').register(bot, battleManager);
@@ -118,11 +124,23 @@ cron.schedule('*/30 * * * * *', () => {
     console.error('[cron] sweepExpiredEvents failed:', err);
   });
 });
-bot.launch().then(() => {
-  // eslint-disable-next-line no-console
-  console.log('[bootstrap] Eris — Sword Path is online.');
-});
+// Apply schema.sql first (idempotent), then start polling.
+runMigration()
+  .then(() => bot.launch(
+    { allowedUpdates: ['message', 'callback_query'] },
+    () => console.log('[bootstrap] Eris — Sword Path is online.')
+  ))
+  .catch((err) => {
+    console.error('[bootstrap] failed to start:', err);
+    process.exit(1);
+  });
+
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));
 
 
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const shutdown = (signal) => {
+  bot.stop(signal);
+  server.close();
+};
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));

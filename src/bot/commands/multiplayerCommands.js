@@ -29,7 +29,7 @@ function register(bot, multiplayerBattleManager) {
     }
 
     await ctx.answerCbQuery('نبرد شروع شد!');
-    await multiplayerBattleManager.startPveBattle(groupId, ctx.chat.id, user, difficulty);
+    await multiplayerBattleManager.startPveBattle(groupId, ctx.chat.id, user, difficulty, ctx.state.threadId || 0);
   });
 
   // ---------- /teambattle ----------
@@ -43,7 +43,7 @@ function register(bot, multiplayerBattleManager) {
     if (existingLobby) {
       return ctx.reply('⚔️ یک نبرد تیمی همین الان در حال جمع‌آوری نفرات است — از دکمهٔ آن پیوند بزنید.');
     }
-    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.TEAM, groupId, ctx.chat.id, user);
+    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.TEAM, groupId, ctx.chat.id, user, ctx.state.threadId || 0);
   });
 
   // ---------- /freeforall ----------
@@ -57,7 +57,7 @@ function register(bot, multiplayerBattleManager) {
     if (existingLobby) {
       return ctx.reply('⚔️ یک نبرد آزاد همین الان در حال جمع‌آوری نفرات است — از دکمهٔ آن بپیوندید.');
     }
-    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.FFA, groupId, ctx.chat.id, user);
+    await multiplayerBattleManager.startRecruiting(mpModel.TYPES.FFA, groupId, ctx.chat.id, user, ctx.state.threadId || 0);
   });
 
   // ---------- Shared lobby actions ----------

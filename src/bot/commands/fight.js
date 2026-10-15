@@ -118,6 +118,7 @@ function register(bot, battleManager) {
       challengerUser: user,
       opponentUser: opponent,
       chatId: ctx.chat.id,
+      threadId: ctx.state.threadId || 0,
     });
   });
 

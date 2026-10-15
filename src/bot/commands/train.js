@@ -86,7 +86,7 @@ function register(bot) {
         await erisEventService.announceEvent(
           ctx.telegram,
           rageResult.triggeredEvent,
-          ctx.chat.id
+          ctx.chat.id, ctx.state.threadId || 0
         );
       }
 

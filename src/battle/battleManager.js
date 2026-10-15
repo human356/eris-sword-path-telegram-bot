@@ -31,6 +31,7 @@ const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
 // per-round report (sendRoundReport) and the final duel result
 // (finalizeBattle) — see src/utils/messageCleanup.js for the full rationale.
 const { sendAutoDelete, sendPersist } = require('../utils/messageCleanup');
+const { threadExtra } = require('../utils/topic');
 
 // In-memory timers, keyed by battle id. A single bot process owns these;
 // all authoritative state still lives in Postgres (spec §28, §32).
@@ -71,7 +72,7 @@ function createBattleManager(bot) {
     return Array.from(new Set([...cLoadout, ...oLoadout]));
   }
 
-  async function startChallenge({ groupId, challengerUser, opponentUser, chatId }) {
+  async function startChallenge({ groupId, challengerUser, opponentUser, chatId, threadId = 0 }) {
     const challengerStats = (await playerStatsModel.getOrCreatePlayerStats(challengerUser.telegramId, groupId)).stats;
     const opponentStats = (await playerStatsModel.getOrCreatePlayerStats(opponentUser.telegramId, groupId)).stats;
 
@@ -81,6 +82,7 @@ function createBattleManager(bot) {
       opponentId: opponentUser.telegramId,
       challengerStats,
       opponentStats,
+      threadId,
     });
 
     const text =
@@ -91,6 +93,7 @@ function createBattleManager(bot) {
 
     const sent = await sendAutoDelete(bot.telegram, chatId, text, {
       parse_mode: 'HTML',
+      ...threadExtra(threadId),
       ...challengeKeyboard(battle.id),
     });
     await battleModel.setChatMessageId(battle.id, sent.message_id);
@@ -170,7 +173,7 @@ function createBattleManager(bot) {
       chatId, battle.chat_message_id, undefined, text,
       { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) }
     ).catch(() =>
-      sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...moveKeyboard(battle.id, cardKeys) })
+      sendAutoDelete(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id), ...moveKeyboard(battle.id, cardKeys) })
     );
 
     clearTimer(roundTimers, battle.id);
@@ -372,7 +375,7 @@ function createBattleManager(bot) {
       `⚡ استقامت باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerStamina} | ${escapeHtml(opponent.display_name)}: ${newOpponentStamina}`;
 
     // Persist — this IS "گزارش هر راند مبارزه", one of the 3 exempt categories.
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML' }).catch(() => {});
+    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
   }
 
   async function resolveRound(battle, moves) {
@@ -701,7 +704,7 @@ function createBattleManager(bot) {
       rageGain += streakService.getStreakRageBonus(streakResult.currentStreak);
       const rageResult = await rageService.addRage(battle.group_id, rageGain);
       if (rageResult.triggeredEvent) {
-        await erisEventService.announceEvent(bot.telegram, rageResult.triggeredEvent, chatId);
+        await erisEventService.announceEvent(bot.telegram, rageResult.triggeredEvent, chatId, battle.thread_id);
       }
 
       if (winnerStats.wins === 1) await achievementModel.unlock(winnerUser.telegram_id, battle.group_id, 'FIRST_BLOOD');
@@ -712,13 +715,13 @@ function createBattleManager(bot) {
 
       resultText +=
       (forfeited
-        ? `⚔️ ${escapeHtml(winnerUser.displayName)} پیروز شد — ${escapeHtml(loserUser.displayName)} به‌دلیل عدم حضور تسلیم شد!\n\n`
-        : `⚔️ ${escapeHtml(winnerUser.displayName)}، ${escapeHtml(loserUser.displayName)} را شکست داد!\n\n`) +
-      `${escapeHtml(winnerUser.displayName)}:\n❤️ ${winnerHp} سلامتی باقی‌مانده\n\n` +
-      `${escapeHtml(loserUser.displayName)}:\n❤️ 0 سلامتی\n\n` +
+        ? `⚔️ ${escapeHtml(winnerUser.display_name)} پیروز شد — ${escapeHtml(loserUser.display_name)} به‌دلیل عدم حضور تسلیم شد!\n\n`
+        : `⚔️ ${escapeHtml(winnerUser.display_name)}، ${escapeHtml(loserUser.display_name)} را شکست داد!\n\n`) +
+      `${escapeHtml(winnerUser.display_name)}:\n❤️ ${winnerHp} سلامتی باقی‌مانده\n\n` +
+      `${escapeHtml(loserUser.display_name)}:\n❤️ 0 سلامتی\n\n` +
       `پاداش‌ها:\n⭐ +${num(xpGain)} تجربه\n🪙 +${num(coinGain)} سکه\n🏆 +${num(scaledRatingGain)} امتیاز\n🔥 احترام اریس +${num(respectGain)}\n\n` +
       `رکورد پیروزی‌های متوالی:\n🔥 ${streakResult.currentStreak}\n\n` +
-      `${escapeHtml(loserUser.displayName)}:\n⭐ +${num(loserXp2Gain)} تجربه\n🪙 +${num(loserCoinGain)} سکه\nامتیاز:\n-${num(scaledRatingLoss)}\n\n` +
+      `${escapeHtml(loserUser.display_name)}:\n⭐ +${num(loserXp2Gain)} تجربه\n🪙 +${num(loserCoinGain)} سکه\nامتیاز:\n-${num(scaledRatingLoss)}\n\n` +
       `Eris:\n"${erisVoice.say(streakResult.currentStreak >= 3 ? 'streak' : 'duel_win')}"`;
       if (rewardScale < 1) {
         resultText += `\n\n<i>(پاداش‌ها کاهش یافتند — شما دو نفر اخیراً بیش از حد با یکدیگر مبارزه کرده‌اید.)</i>`;
@@ -726,7 +729,7 @@ function createBattleManager(bot) {
     }
 
     // Persist — this IS "گزارش نهایی نتایج نبردها", one of the 3 exempt categories.
-    await sendPersist(bot.telegram, chatId, resultText, { parse_mode: 'HTML' });
+    await sendPersist(bot.telegram, chatId, resultText, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) });
   }
 
   async function sweepExpiredChallenges() {
