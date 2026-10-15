@@ -23,6 +23,10 @@ async function setChatMessageId(eventId, messageId) {
   await query('UPDATE events SET chat_message_id = $2 WHERE id = $1', [eventId, messageId]);
 }
 
+async function setThreadId(eventId, threadId) {
+  await query('UPDATE events SET thread_id = $2 WHERE id = $1', [eventId, threadId || 0]);
+}
+
 async function recordAttempt(eventId, telegramId, damage) {
   await query(
     `INSERT INTO event_participants (event_id, telegram_id, damage, attempted)
@@ -67,6 +71,6 @@ async function getExpiredActiveEvents() {
 }
 
 module.exports = {
-  getActiveEvent, createEvent, setChatMessageId, recordAttempt,
+  getActiveEvent, createEvent, setChatMessageId, setThreadId, recordAttempt,
   hasAttempted, getLeaderboard, finishEvent, getExpiredActiveEvents,
 };

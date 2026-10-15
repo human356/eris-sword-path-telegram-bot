@@ -74,3 +74,13 @@ See `/help` in-bot for the full, current list. Highlights: `/start`, `/profile`,
 
 - Battle round timers currently live in-process (`Map`s in `battleManager.js`). If you ever run more than one bot instance, move these to a shared store (Redis) or make Postgres the source of truth for timeouts via a polling sweep — the DB-side state machine is already the source of truth for everything else, so this is a small extension, not a rewrite.
 - All authoritative game state is in Postgres; the in-memory pieces are only for coordinating "did both players move yet" within one live round.
+
+## Topics (forum threads)
+
+The bot understands Telegram forum topics. By default every section works in every topic. Group admins can optionally pin sections to specific topics:
+
+1. Open the topic where a section should work and send `/topics`.
+2. Tap a section's button — this topic is added to (or removed from) that section. A section with at least one topic only works in those topics; a section with none works everywhere.
+3. "♻️ Reset" restores the default (everything everywhere).
+
+Replies, battle prompts, round reports and Eris events are always posted back into the topic they belong to. Buttons of battles that are already running keep working even if the rules change mid-fight. Set `DATABASE_SSL=true` in `.env` for hosted Postgres that requires SSL. The schema is applied automatically on every boot.

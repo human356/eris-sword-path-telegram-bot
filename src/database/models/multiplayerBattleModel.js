@@ -13,13 +13,13 @@ const STATES = Object.freeze({
 
 const TYPES = Object.freeze({ TEAM: 'TEAM', FFA: 'FFA', PVE: 'PVE' });
 
-async function createBattle({ groupId, type, maxRounds, difficulty, initiatorId, recruitSeconds }) {
+async function createBattle({ groupId, type, maxRounds, difficulty, initiatorId, recruitSeconds, threadId = 0 }) {
   const recruitExpiresAt = recruitSeconds ? new Date(Date.now() + recruitSeconds * 1000) : null;
   const { rows } = await query(
-    `INSERT INTO multiplayer_battles (group_id, type, state, max_rounds, difficulty, initiator_id, recruit_expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO multiplayer_battles (group_id, type, state, max_rounds, difficulty, initiator_id, recruit_expires_at, thread_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [groupId, type, STATES.RECRUITING, maxRounds, difficulty || null, initiatorId, recruitExpiresAt]
+    [groupId, type, STATES.RECRUITING, maxRounds, difficulty || null, initiatorId, recruitExpiresAt, threadId]
   );
   return rows[0];
 }

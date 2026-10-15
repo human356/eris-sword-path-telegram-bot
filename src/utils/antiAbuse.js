@@ -12,8 +12,10 @@ async function getDuplicateOpponentRewardScale(groupId, playerA, playerB) {
     groupId, playerA, playerB, C.DUPLICATE_OPPONENT_WINDOW_HOURS
   );
   const scale = C.DUPLICATE_OPPONENT_REWARD_SCALE;
-  if (priorDuels >= scale.length) return 0;
-  return scale[priorDuels];
+  // The duel that just ended is already FINISHED in the DB and therefore counted.
+  const previous = Math.max(0, priorDuels - 1);
+  if (previous >= scale.length) return 0;
+  return scale[previous];
 }
 
 module.exports = { getDuplicateOpponentRewardScale };

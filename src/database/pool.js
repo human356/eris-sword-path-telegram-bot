@@ -12,7 +12,7 @@ types.setTypeParser(20, (val) => parseInt(val, 10));
 
 const pool = new Pool(
   env.DATABASE_URL
-    ? { connectionString: env.DATABASE_URL }
+    ? { connectionString: env.DATABASE_URL, ...(env.DATABASE_SSL ? { ssl: { rejectUnauthorized: false } } : {}) }
     : {
         host: env.PGHOST,
         port: env.PGPORT ? Number(env.PGPORT) : 5432,

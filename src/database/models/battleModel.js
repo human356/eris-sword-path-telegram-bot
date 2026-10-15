@@ -19,18 +19,18 @@ const LIVE_PATCHABLE_COLUMNS = new Set([
   'active_effects', 'hidden_report_side',
 ]);
 
-async function createBattle({ groupId, challengerId, opponentId, challengerStats, opponentStats }) {
+async function createBattle({ groupId, challengerId, opponentId, challengerStats, opponentStats, threadId = 0 }) {
   const expiresAt = new Date(Date.now() + C.CHALLENGE_TIMEOUT_SECONDS * 1000);
   const { rows } = await query(
     `INSERT INTO battles
       (group_id, challenger_id, opponent_id, state,
-       challenger_hp, challenger_stamina, opponent_hp, opponent_stamina, expires_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       challenger_hp, challenger_stamina, opponent_hp, opponent_stamina, expires_at, thread_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       groupId, challengerId, opponentId, STATES.WAITING_FOR_ACCEPT,
       challengerStats.hp, challengerStats.stamina, opponentStats.hp, opponentStats.stamina,
-      expiresAt,
+      expiresAt, threadId,
     ]
   );
   return rows[0];

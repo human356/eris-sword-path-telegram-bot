@@ -19,5 +19,6 @@ module.exports = {
   PGPASSWORD: process.env.PGPASSWORD,
   PGDATABASE: process.env.PGDATABASE,
   SUPER_ADMIN_IDS: parseAdminIds(process.env.SUPER_ADMIN_IDS),
+  DATABASE_SSL: process.env.DATABASE_SSL === 'true',
   NODE_ENV: process.env.NODE_ENV || 'development',
 };

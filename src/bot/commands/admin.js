@@ -85,7 +85,7 @@ function register(bot) {
 
     const event = await eventModel.createEvent(ctx.state.groupId, 'ERIS_CHALLENGE');
     await rageModel.resetRage(ctx.state.groupId);
-    await erisEventService.announceEvent(ctx.telegram, event, ctx.chat.id);
+    await erisEventService.announceEvent(ctx.telegram, event, ctx.chat.id, ctx.state.threadId || 0);
   });
 
   // /settings — toggle cooldowns / anti-abuse for this group
