@@ -61,8 +61,16 @@ function resolveOneVsOne(moveA, statsA, moveB, statsB) {
   return { aDamageDealt: 0, bDamageDealt: 0, log: ['هر دو طرف بی‌واکنش ماندند.'], effects: {} };
 }
 
-function combatStatsOf(playerRow) {
-  return { attack: playerRow.attack, defense: playerRow.defense, speed: playerRow.speed, critChance: Number(playerRow.crit_chance) };
+function combatStatsOf(playerRow, multiplier = 1) {
+  return {
+    attack: Math.max(1, Math.round(playerRow.attack * multiplier)),
+    defense: Math.max(0, Math.round(playerRow.defense * multiplier)),
+    speed: Math.max(0, Math.round(playerRow.speed * multiplier)),
+    critChance: Number(playerRow.crit_chance) * multiplier,
+    // needed by percent-of-max-HP cards (FIREBALL) and METEOR_STRIKE's execute check
+    maxHp: playerRow.max_hp,
+    stamina: playerRow.stamina,
+  };
 }
 
 function isLateRound(battle) {
@@ -207,8 +215,11 @@ function createMultiplayerBattleManager(bot) {
     });
     // The bot mirrors the human's own combat power level (attack/defense/speed/crit) —
     // this MVP doesn't give Eris an independent RPG stat block. See guide.
+    const botMaxHp = difficulty === aiOpponent.DIFFICULTIES.EASY
+      ? Math.max(1, Math.round(stats.max_hp * C.PVE_EASY_HP_MULTIPLIER))
+      : stats.max_hp;
     await mpModel.addParticipant({
-      battleId: battle.id, isBot: true, displayName: 'اریس', hp: stats.max_hp, maxHp: stats.max_hp,
+      battleId: battle.id, isBot: true, displayName: 'اریس', hp: botMaxHp, maxHp: botMaxHp,
       stamina: stats.max_stamina, maxStamina: stats.max_stamina,
     });
 
@@ -415,8 +426,13 @@ function createMultiplayerBattleManager(bot) {
     const playerLoadout = await cardLoadoutModel.getLoadout(human.telegram_id, battle.group_id);
     const botMove = aiOpponent.chooseAiMove(battle.difficulty, { ...bot_, stamina: botStamina }, playerLoadout);
 
-    const humanStats = combatStatsOf(await playerStatsModel.getPlayerStats(human.telegram_id, battle.group_id));
-    const botStats = humanStats; // mirror match — see guide
+    const humanRow = await playerStatsModel.getPlayerStats(human.telegram_id, battle.group_id);
+    const humanStats = combatStatsOf(humanRow);
+    // Mirror match — except on EASY, where Eris is weaker than the player.
+    const botStats = battle.difficulty === aiOpponent.DIFFICULTIES.EASY
+      ? { ...combatStatsOf(humanRow, C.PVE_EASY_STAT_MULTIPLIER), maxHp: bot_.max_hp, stamina: botStamina }
+      : { ...humanStats, maxHp: bot_.max_hp, stamina: botStamina };
+    humanStats.stamina = human.stamina;
 
     const result = resolveOneVsOne(humanMove, humanStats, botMove, botStats);
     const log = [...result.log];

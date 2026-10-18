@@ -3,31 +3,18 @@ const playerStatsModel = require('../../database/models/playerStatsModel');
 const showcaseModel = require('../../database/models/showcaseModel');
 const { renderProfile, renderWelcome } = require('../views/profileView');
 const { mainMenu } = require('../keyboards');
-const { regenSince, staminaRegenRatePerMinute, hpRegenRatePerMinute } = require('../../utils/formulas');
 
+/**
+ * Regen is now applied for everyone by a cron tick (src/regen/regenService.js),
+ * so viewing the profile must NOT top anything up. The old on-view calculation
+ * measured time since a stale last_*_regen_at (never reset when stamina was
+ * spent), so the first /profile after a while refilled everything instantly.
+ * Kept as a thin function so existing callers keep working; it just returns
+ * the freshest stats.
+ */
 async function applyPassiveRegen(telegramId, groupId, stats) {
-  const staminaRate = staminaRegenRatePerMinute(stats.level);
-  const hpRate = hpRegenRatePerMinute(stats.level);
-
-  const newStamina = regenSince(stats.last_stamina_regen_at, stats.stamina, stats.max_stamina, staminaRate);
-  const newHp = regenSince(stats.last_hp_regen_at, stats.hp, stats.max_hp, hpRate);
-
-  // Only reset the timer for whichever stat actually ticked up — resetting
-  // both unconditionally (the old behavior) throws away fractional regen
-  // progress on the stat that didn't tick this time, which matters more now
-  // that HP and stamina regen at different, level-scaled speeds.
-  const patch = {};
-  if (newStamina !== stats.stamina) {
-    patch.stamina = newStamina;
-    patch.last_stamina_regen_at = new Date();
-  }
-  if (newHp !== stats.hp) {
-    patch.hp = newHp;
-    patch.last_hp_regen_at = new Date();
-  }
-
-  if (Object.keys(patch).length === 0) return stats;
-  return playerStatsModel.updatePlayerStats(telegramId, groupId, patch);
+  const fresh = await playerStatsModel.getPlayerStats(telegramId, groupId);
+  return fresh || stats;
 }
 
 function register(bot) {

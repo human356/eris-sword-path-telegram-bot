@@ -3,6 +3,8 @@ const { Telegraf } = require('telegraf');
 const express = require('express');
 const cron = require('node-cron');
 const env = require('./config/env');
+const C = require('./config/constants');
+const { runRegenTick } = require('./regen/regenService');
 
 const ensureContext = require('./bot/middlewares/ensureContext');
 const callbackGuard = require('./bot/middlewares/callbackGuard');
@@ -124,6 +126,13 @@ cron.schedule('*/30 * * * * *', () => {
     console.error('[cron] sweepExpiredEvents failed:', err);
   });
 });
+// Passive regen for all players: +1% stamina/HP every REGEN_TICK_MINUTES minutes.
+cron.schedule(`*/${C.REGEN_TICK_MINUTES} * * * *`, () => {
+  runRegenTick().catch((err) => {
+    console.error('[cron] runRegenTick failed:', err);
+  });
+});
+
 // Apply schema.sql first (idempotent), then start polling.
 runMigration()
   .then(() => bot.launch(

@@ -81,8 +81,17 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
     return { success: false, reason: 'NOT_ENOUGH_COINS', price: totalPrice };
   }
 
-  const newInventoryQty = await inventoryModel.addItem(telegramId, groupId, itemKey, quantity, def.stackLimit);
-  await purchaseLogModel.recordPurchase(telegramId, groupId, itemKey, quantity);
+  let newInventoryQty;
+  try {
+    newInventoryQty = await inventoryModel.addItem(telegramId, groupId, itemKey, quantity, def.stackLimit);
+    await purchaseLogModel.recordPurchase(telegramId, groupId, itemKey, quantity);
+  } catch (err) {
+    // Never keep the coins if the item couldn't be delivered: refund, then rethrow.
+    await coinService.grantCoins(
+      telegramId, groupId, spendResult.stats, totalPrice, 'SHOP_REFUND', { itemKey, quantity }
+    ).catch((refundErr) => console.error('[shop] refund failed:', refundErr));
+    throw err;
+  }
 
   return {
     success: true,

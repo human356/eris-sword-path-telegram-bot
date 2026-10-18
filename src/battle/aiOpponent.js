@@ -1,6 +1,7 @@
 'use strict';
 const engine = require('./battleEngine');
 const specialCards = require('./specialCards');
+const C = require('../config/constants');
 
 const DIFFICULTIES = Object.freeze({ EASY: 'EASY', MEDIUM: 'MEDIUM', HARD: 'HARD' });
 const STARTER_MOVES = ['ATTACK', 'GUARD', 'DODGE', 'HEAVY_ATTACK', 'COUNTER'];
@@ -24,7 +25,7 @@ function initialAiSupplies(difficulty) {
  * engine's own internal accuracy rolls.
  */
 function rollsAMiss(difficulty) {
-  if (difficulty === DIFFICULTIES.EASY) return Math.random() < Math.random() * 0.15;
+  if (difficulty === DIFFICULTIES.EASY) return Math.random() < C.PVE_EASY_FUMBLE_CHANCE;
   if (difficulty === DIFFICULTIES.MEDIUM) return Math.random() < Math.random() * 0.05;
   return false; // HARD: no miss chance at all
 }
@@ -51,7 +52,8 @@ function chooseAiMove(difficulty, aiParticipant, playerLoadout) {
   }
 
   const offensive = affordable.filter((m) => specialCards.isOffensiveMove(m));
-  const pool2 = offensive.length && Math.random() < 0.7 ? offensive : affordable;
+  const aggression = difficulty === DIFFICULTIES.EASY ? C.PVE_EASY_AGGRESSION : 0.7;
+  const pool2 = offensive.length && Math.random() < aggression ? offensive : affordable;
   return pool2[Math.floor(Math.random() * pool2.length)];
 }
 
@@ -61,6 +63,7 @@ function chooseAiMove(difficulty, aiParticipant, playerLoadout) {
  * کند"). Mutates `supplies` in place. Returns a report line or null.
  */
 function maybeUseSupplies(difficulty, supplies, aiParticipant) {
+  // EASY: Eris never drinks potions / uses stamina pills (or any other recovery).
   if (difficulty === DIFFICULTIES.EASY) return null;
 
   const hpRatio = aiParticipant.hp / aiParticipant.max_hp;

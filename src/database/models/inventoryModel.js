@@ -35,14 +35,21 @@ async function getItemQuantity(telegramId, groupId, itemKey) {
  * already spent!) and treasure chest rolls for any item with
  * `stackLimit: null`. Normalizing here fixes every caller in one place.
  */
-async function addItem(telegramId, groupId, itemKey, amount, stackLimit = Number.MAX_SAFE_INTEGER) {
-  const limit = (stackLimit === null || stackLimit === undefined) ? Number.MAX_SAFE_INTEGER : stackLimit;
+// quantity is a Postgres INTEGER (int4); Number.MAX_SAFE_INTEGER overflows it
+// ("value out of range for type integer"), so "unlimited" is int4's max instead.
+const INT4_MAX = 2147483647;
 
+async function addItem(telegramId, groupId, itemKey, amount, stackLimit = INT4_MAX) {
+  const limit = (stackLimit === null || stackLimit === undefined) ? INT4_MAX : Math.min(stackLimit, INT4_MAX);
+
+  // Explicit ::int casts: $4 is used in two different expression contexts, and
+  // without them Postgres can deduce conflicting types for the same parameter
+  // ("inconsistent types deduced for parameter $4"), failing EVERY purchase.
   const { rows } = await query(
     `INSERT INTO inventory_items (telegram_id, group_id, item_key, quantity, updated_at)
-     VALUES ($1, $2, $3, LEAST($4, $5), now())
+     VALUES ($1, $2, $3, LEAST($4::int, $5::int), now())
      ON CONFLICT (telegram_id, group_id, item_key) DO UPDATE
-     SET quantity = LEAST(inventory_items.quantity + $4, $5), updated_at = now()
+     SET quantity = LEAST(inventory_items.quantity + $4::int, $5::int), updated_at = now()
      RETURNING quantity`,
     [telegramId, groupId, itemKey, amount, limit]
   );

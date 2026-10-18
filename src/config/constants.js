@@ -171,6 +171,19 @@ module.exports = {
   // level-1 starting pool the spec calls out explicitly.
   HP_CAPACITY_PER_LEVEL: 10,
 
+  // ---------- Background regen tick (all players, via cron) ----------
+  // Every REGEN_TICK_MINUTES minutes each player regains this fraction of
+  // their max stamina / max HP (always at least 1 point).
+  REGEN_TICK_MINUTES: 3,
+  STAMINA_REGEN_PERCENT_PER_TICK: 0.01,
+  HP_REGEN_PERCENT_PER_TICK: 0.01,
+
+  // ---------- PvE (training battle vs Eris) — EASY tuning ----------
+  PVE_EASY_STAT_MULTIPLIER: 0.75, // Eris's attack/defense/speed/crit on EASY
+  PVE_EASY_HP_MULTIPLIER: 0.8, // Eris's starting HP on EASY, relative to the player's max HP
+  PVE_EASY_AGGRESSION: 0.5, // chance Eris picks an offensive move on EASY (others: 0.7)
+  PVE_EASY_FUMBLE_CHANCE: 0.25, // chance Eris wastes the round guarding on EASY
+
   // ---------- Daily challenge ----------
   DAILY_CHALLENGE_COOLDOWN_HOURS: 24,
 
