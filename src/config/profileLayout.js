@@ -24,162 +24,70 @@ const LAYOUT = {
   baseHeight: BASE_H,
 
   // ============================================================
-  // TOP AREA
-  // Matches the three empty zones in the generated templates.
+  // Measured on the DEFAULT template (1672x940 -> scaled to 1280x720).
+  // The three empty zones sit at the top; the character occupies the far left
+  // (x < ~300) and the flag the far right (x > ~1070), so every text block
+  // below lives in the dark middle band x 310..1070.
   // ============================================================
 
   // Left circular zone.
-  // Template circle is approximately centered around x=300, y=185.
-  avatar: {
-    cx: 300,
-    cy: 185,
-    r: 105,
-  },
+  avatar: { cx: 304, cy: 153, r: 98 },
 
-  // Center rectangular zone.
-  // Matches the empty rounded rectangle in the generated templates.
+  // Centre rounded-rectangle zone.
   header: {
-    panel: {
-      x: 425,
-      y: 75,
-      w: 430,
-      h: 165,
-    },
-
-    // Text is centered inside the middle zone.
-    cx: 640,
-
-    name: {
-      y: 135,
-      size: 48,
-      maxWidth: 390,
-    },
-
-    username: {
-      y: 183,
-      size: 25,
-      maxWidth: 390,
-    },
-
-    titlePill: {
-      y: 215,
-      h: 34,
-      size: 22,
-      maxWidth: 350,
-    },
+    panel: { x: 433, y: 78, w: 400, h: 169 },
+    cx: 633,
+    name: { y: 114, size: 42, maxWidth: 370 },
+    username: { y: 155, size: 24, maxWidth: 370 },
+    titlePill: { y: 205, h: 34, size: 21, maxWidth: 320 },
   },
 
   // Right circular zone.
-  // Kept away from the character artwork that occupies the far-right edge.
-  levelBadge: {
-    cx: 960,
-    cy: 185,
-    r: 105,
+  levelBadge: { cx: 959, cy: 153, r: 102, labelY: 108, labelSize: 22, numberY: 160, numberSize: 68 },
 
-    labelY: 130,
-    labelSize: 24,
-
-    numberY: 195,
-    numberSize: 76,
-  },
-
-  // ============================================================
-  // RANK / XP
-  // ============================================================
-
+  // Rank + XP bar (under the three zones, centred in the dark band).
   rankStrip: {
-    panel: {
-      x: 60,
-      y: 315,
-      w: 1160,
-      h: 115,
-    },
-
-    cx: 640,
-
-    rankY: 345,
-    rankSize: 34,
-
-    bar: {
-      x: 200,
-      y: 378,
-      w: 880,
-      h: 20,
-    },
-
-    xpTextY: 415,
-    xpTextSize: 22,
+    panel: { x: 310, y: 280, w: 760, h: 100 },
+    cx: 690,
+    rankY: 307,
+    rankSize: 30,
+    bar: { x: 390, y: 336, w: 600, h: 18 },
+    xpTextY: 366,
+    xpTextSize: 20,
   },
 
-  // ============================================================
-  // STATS
-  // ============================================================
-
+  // 2 columns x 6 rows.
   stats: {
-    panel: {
-      x: 60,
-      y: 455,
-      w: 760,
-      h: 225,
-    },
-
-    startX: 80,
-    startY: 468,
-
-    cellW: 240,
-    cellH: 48,
-
+    panel: { x: 310, y: 395, w: 470, h: 300 },
+    startX: 322,
+    startY: 403,
+    cellW: 215,
+    cellH: 44,
     gapX: 10,
     gapY: 4,
-
-    cols: 3,
-
-    labelSize: 22,
-    valueSize: 26,
+    cols: 2,
+    labelSize: 20,
+    valueSize: 24,
   },
 
-  // ============================================================
-  // SHOWCASE
-  // ============================================================
-
+  // 3 showcase squares.
   showcase: {
-    panel: {
-      x: 850,
-      y: 455,
-      w: 370,
-      h: 160,
-    },
-
-    headingY: 475,
-    headingSize: 20,
-
-    slot: {
-      size: 90,
-      y: 490,
-      xs: [875, 990, 1105],
-    },
-
-    labelY: 596,
-    labelSize: 17,
-    labelMaxWidth: 112,
+    panel: { x: 795, y: 395, w: 275, h: 140 },
+    headingY: 414,
+    headingSize: 18,
+    slot: { size: 72, y: 428, xs: [806, 889, 972] },
+    labelY: 515,
+    labelSize: 14,
+    labelMaxWidth: 80,
   },
 
-  // ============================================================
-  // TITLES
-  // ============================================================
-
+  // Owned titles strip.
   titles: {
-    panel: {
-      x: 850,
-      y: 625,
-      w: 370,
-      h: 55,
-    },
-
-    cx: 1035,
-    y: 652,
-    size: 20,
-    maxWidth: 350,
+    panel: { x: 795, y: 548, w: 275, h: 56 },
+    cx: 932,
+    y: 576,
+    size: 17,
+    maxWidth: 255,
   },
 };
 
