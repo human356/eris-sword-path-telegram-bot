@@ -21,6 +21,7 @@ const SHOP_WORDS = ['shop', 'store', 'فروشگاه', 'فروشگاه اریس'
 function parseQuery(raw) {
   const q = String(raw || '').trim();
   const lower = q.toLowerCase();
+  if (!q) return { search: '' }; // just "@bot " already shows the shop
   for (const word of SHOP_WORDS) {
     if (lower === word) return { search: '' };
     if (lower.startsWith(`${word} `)) return { search: q.slice(word.length).trim() };
@@ -35,6 +36,7 @@ function matches(item, search) {
 }
 
 async function onInlineQuery(ctx) {
+  console.log(`[inline-shop] query from ${ctx.from && ctx.from.id}: "${ctx.inlineQuery.query}"`);
   const parsed = parseQuery(ctx.inlineQuery.query);
   if (!parsed) {
     return ctx.answerInlineQuery([], {
