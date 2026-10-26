@@ -14,7 +14,9 @@ const { runMigration } = require('./database/migrate');
 
 const { createBattleManager } = require('./battle/battleManager');
 const erisEventService = require('./events/erisEventService');
-const inventoryCommand = require('./bot/commands/inventory');
+const imageService = require('./services/imageService');
+const shopPostService = require('./services/shopPostService');
+const startGate = require('./bot/middlewares/startGate');
 const { createMultiplayerBattleManager } = require('./battle/multiplayerBattleManager');
 
 
@@ -26,6 +28,7 @@ if (!env.BOT_TOKEN) {
 
 const bot = new Telegraf(env.BOT_TOKEN);
 const battleManager = createBattleManager(bot);
+imageService.init(bot.telegram);
 
 bot.use(callbackGuard);
 bot.use(ensureContext);
@@ -33,6 +36,8 @@ bot.use(ensureContext);
 // cleanup) and adds ctx.replyPersist for the 3 exempt message categories.
 // Must come after ensureContext, which sets ctx.state.isGroup.
 bot.use(autoDeleteMiddleware);
+// /start gate: group players must have pressed Start in private once.
+bot.use(startGate);
 // Topics: blocks sections an admin pinned to other forum topics (optional feature).
 bot.use(topicGuard);
 const app = express();
@@ -49,37 +54,9 @@ app.get('/', (req, res) => {
 const server = app.listen(PORT, () => {
   console.log(`🌐 Health server running on port ${PORT}`);
 });
-// ============================================================
-// START / DEEP LINKS
-// ============================================================
-
-bot.start(async (ctx, next) => {
-  if (ctx.state && ctx.state.isGroup) return next();
-  const payload =
-    ctx.message?.text?.split(' ').slice(1).join(' ') || '';
-
-  // Deep Link مخصوص «جیب من»
-  if (payload.startsWith('jib_')) {
-    const handled = await inventoryCommand.handleInventoryStart(
-      ctx,
-      payload
-    );
-
-    if (handled) return;
-  }
-
-  // ==========================================================
-  // START عادی ربات
-  // ==========================================================
-
-  // اگر /start عادی فعلی رباتت کدی دارد،
-  // آن کد را اینجا قرار بده.
-
-  await ctx.reply(
-    '⚔️ به Eris — Sword Path خوش آمدید!'
-  );
-});
 // Commands
+require('./bot/commands/start').register(bot);
+require('./bot/commands/adminImages').register(bot);
 const multiplayerBattleManager = createMultiplayerBattleManager(bot);
 require('./bot/commands/erisTrigger').register(bot, multiplayerBattleManager);
 require('./bot/commands/profile').register(bot);
@@ -93,6 +70,10 @@ require('./bot/commands/rage').register(bot);
 require('./bot/commands/event').register(bot);
 require('./bot/commands/shop').register(bot);
 require('./bot/commands/inventory').register(bot);
+require('./bot/commands/profileManage').register(bot);
+require('./bot/commands/privateShop').register(bot);
+require('./bot/commands/inlineShop').register(bot);
+require('./bot/commands/shopTopic').register(bot);
 require('./bot/commands/help').register(bot);
 require('./bot/commands/admin').register(bot);
 require('./bot/commands/topics').register(bot);
@@ -133,11 +114,24 @@ cron.schedule(`*/${C.REGEN_TICK_MINUTES} * * * *`, () => {
   });
 });
 
+// Weekly shop auto-post into the topic admins chose with /shoptopic.
+cron.schedule(C.SHOP_POST_SWEEP_CRON, () => {
+  shopPostService.sweep(bot.telegram).catch((err) => {
+    console.error('[cron] shop post sweep failed:', err);
+  });
+});
+
 // Apply schema.sql first (idempotent), then start polling.
 runMigration()
   .then(() => bot.launch(
-    { allowedUpdates: ['message', 'callback_query'] },
-    () => console.log('[bootstrap] Eris — Sword Path is online.')
+    { allowedUpdates: ['message', 'callback_query', 'inline_query'] },
+    () => {
+      console.log('[bootstrap] Eris — Sword Path is online.');
+      // Upload the pictures shipped in /assets once (inline shop needs Telegram file_ids).
+      imageService.primeAssets()
+        .then((r) => console.log(`[images] assets primed: ${r.uploaded} uploaded, ${r.skipped} already up to date`))
+        .catch((err) => console.error('[images] primeAssets failed:', err.message));
+    }
   ))
   .catch((err) => {
     console.error('[bootstrap] failed to start:', err);

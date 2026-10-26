@@ -154,6 +154,10 @@ function homeKeyboard(groupId, items) {
   }
 
   rows.push([
+    Markup.button.callback('🖼 پروفایل من', `jib:prof:${groupId}`),
+  ]);
+
+  rows.push([
     Markup.button.callback(
       '🃏 ویرایش کارت‌های نبرد',
       `jib:cards:${groupId}`
@@ -242,7 +246,7 @@ function showcaseSlotPickerKeyboard(groupId, showcase) {
   rows.push([
     Markup.button.callback(
       '🔙 بازگشت',
-      `jib:home:${groupId}`
+      `jib:prof:${groupId}`
     ),
   ]);
 
@@ -767,6 +771,7 @@ function register(bot) {
       await showcaseModel.setSlot(telegramId, groupId, slot, rawKey === 'NONE' ? null : rawKey);
 
       await ctx.answerCbQuery(rawKey === 'NONE' ? '✅ خانه خالی شد.' : '✅ ویترین به‌روزرسانی شد!');
+      require('./profileManage').publishIfAllowed(ctx, groupId, '🗂 ویترین پروفایل عوض شد!').catch(() => {});
 
       const showcase = await showcaseModel.getShowcase(telegramId, groupId);
       const text =

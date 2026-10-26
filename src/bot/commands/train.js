@@ -6,6 +6,7 @@ const erisVoice = require('../../eris/erisVoice');
 const rageService = require('../../eris/rageService');
 const erisEventService = require('../../events/erisEventService');
 const C = require('../../config/constants');
+const levelUpService = require('../../services/levelUpService');
 
 const STAT_LABELS = {
   attack: 'قدرت حمله',
@@ -109,10 +110,21 @@ function register(bot) {
       // Phase 6: this IS "گزارش نتیجه تمرین کاربر" — one of the 3 exempt
       // categories, so it uses replyPersist (never auto-deleted) instead of
       // the group-default auto-deleting ctx.reply.
-      await ctx.replyPersist(
+      const resultMsg = await ctx.replyPersist(
         text,
         { parse_mode: 'HTML', ...mainMenu() }
       );
+
+      // Level-up celebration: photo post replying to the training result message.
+      if (result.xpResult.leveledUp) {
+        await levelUpService.postLevelUp(ctx.telegram, {
+          chatId: ctx.chat.id,
+          threadId: ctx.state.threadId || 0,
+          replyToMessageId: resultMsg && resultMsg.message_id,
+          user: { telegramId: user.telegramId, displayName: user.displayName, username: user.username },
+          level: result.xpResult.stats.level,
+        });
+      }
     }
   );
 }

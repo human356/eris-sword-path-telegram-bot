@@ -84,3 +84,26 @@ The bot understands Telegram forum topics. By default every section works in eve
 3. "♻️ Reset" restores the default (everything everywhere).
 
 Replies, battle prompts, round reports and Eris events are always posted back into the topic they belong to. Buttons of battles that are already running keep working even if the rules change mid-fight. Set `DATABASE_SSL=true` in `.env` for hosted Postgres that requires SSL. The schema is applied automatically on every boot.
+
+## Phase 8 — image profile, inline shop, admin images
+
+**Install first:** `npm install` (adds `@napi-rs/canvas`, used to draw the profile card). Without it the bot still runs and `/profile` falls back to the old text profile.
+
+Environment: `BOT_TOKEN`, `DATABASE_URL`, **`SUPER_ADMIN_IDS`** (the "mother admin" ids, comma separated) and **`BOT_USERNAME`** (without `@`).  
+In @BotFather enable **Inline Mode** (`/setinline`, placeholder e.g. `shop`) — required for the `@bot shop` shop.
+
+| Feature | How it works |
+|---|---|
+| **Image profile** | `/profile` sends a 16:9 card (name, @username, Telegram avatar, level, XP bar, stats, 3 showcase items, title). The card is rendered once, sent, and Telegram's `file_id` is cached in `profile_card_cache` together with a hash of everything drawn. Same hash → re-sent by `file_id` (no rendering). Any change (name, username, avatar, level, stats, showcase, title, template) → re-render + new `file_id`. |
+| **Templates** | Free `tpl:DEFAULT` + paid `TPL_*` items (see `items.json`). Put pictures in `assets/templates/<KEY>.png` or send them to the bot with `/admin`. Layout numbers live in `src/config/profileLayout.js`; try them with `npm run preview:card`. |
+| **پروفایل من** | «جیب من» → «🖼 پروفایل من»: choose template, choose title, edit showcase, preview, publish. Each change posts the new card in the group (30 s per-player rate limit). |
+| **Level-up post** | After a training session that levels the player up, the bot replies to the training result with a photo (`level:<N>`, else `level:default`) and a congratulation naming the player (@username linked). |
+| **/start gate** | In groups, a player who never pressed Start in private gets a «start the bot first» notice (5 s cooldown) instead of an answer. Running battles are never interrupted. |
+| **Admin images** | In private chat, a super admin sends `/admin` → pick a slot (template / product / level / shop banner) → send the picture as a **Photo**. Admin pictures win over `assets/` files. |
+| **Inline shop** | Type `@botusername shop` (optionally + a search word) in any chat → products with photo/description/price. Choosing one posts it with a button that opens the bot privately on the purchase screen (`/start buy_<ITEM>`). |
+| **Weekly shop post** | A group admin runs `/shoptopic` inside the desired topic → «📍 همین موضوع». Every week the bot posts the new discounts + decorative rotation there (check every `SHOP_POST_SWEEP_CRON`). |
+| **Weekly discounts** | `weekly_offers`: 3 random products get 10–30 % off for 7 days, applied everywhere prices are shown or charged. |
+| **Coins** | Battle participation rewards lowered: PvP win 100→40, loss 10→4, PvE 40→15 (`src/config/constants.js`). |
+
+Picture file names (`assets/…`): `templates/DEFAULT.png`, `templates/TPL_FLAME.png`, `items/<ITEM_KEY>.png`, `levels/<N>.png`, `levels/default.png`, `shop/banner.png`. Check with `npm run check:assets`.  
+Image prompts for AI generators: [`docs/AI_IMAGE_PROMPTS.md`](docs/AI_IMAGE_PROMPTS.md) (16:9 profile templates + placement map) and [`docs/ITEM_IMAGE_PROMPTS.md`](docs/ITEM_IMAGE_PROMPTS.md) (decorative items, paid templates, products).

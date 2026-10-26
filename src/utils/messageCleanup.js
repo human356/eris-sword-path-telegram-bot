@@ -39,4 +39,11 @@ async function sendPersist(telegram, chatId, text, extra = {}) {
   return telegram.sendMessage(chatId, text, extra);
 }
 
-module.exports = { scheduleDelete, sendAutoDelete, sendPersist };
+/** Same as sendAutoDelete, for photos (profile cards, shop pictures). Returns the sent message. */
+async function sendPhotoAutoDelete(telegram, chatId, photo, extra = {}) {
+  const msg = await telegram.sendPhoto(chatId, photo, extra);
+  scheduleDelete(telegram, chatId, msg.message_id);
+  return msg;
+}
+
+module.exports = { scheduleDelete, sendAutoDelete, sendPersist, sendPhotoAutoDelete };

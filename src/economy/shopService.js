@@ -4,6 +4,7 @@ const playerStatsModel = require('../database/models/playerStatsModel');
 const inventoryModel = require('../database/models/inventoryModel');
 const purchaseLogModel = require('../database/models/purchaseLogModel');
 const decorativeRotationModel = require('../database/models/decorativeRotationModel');
+const weeklyOfferModel = require('../database/models/weeklyOfferModel');
 const coinService = require('./coinService');
 
 function getItemDef(itemKey) {
@@ -30,6 +31,42 @@ async function listDecorativeShopItems() {
     .filter(Boolean);
 }
 
+/** { base, percent, final } — price after the current weekly discount (if the item has one). */
+async function getPriceInfo(itemKey) {
+  const def = getItemDef(itemKey);
+  const base = def ? def.price : 0;
+  const percent = def ? await weeklyOfferModel.getDiscountPercent(itemKey).catch(() => 0) : 0;
+  const final = percent > 0 ? Math.max(1, Math.round(base * (100 - percent) / 100)) : base;
+  return { base, percent, final };
+}
+
+/**
+ * Everything currently on sale, in display order: this week's discounts first,
+ * then regular products (consumables, cards, mystery, profile templates), then the
+ * weekly decorative rotation. Each entry: { key, ...def, priceInfo }.
+ */
+async function listShopCatalog() {
+  const offers = await weeklyOfferModel.getActiveOffers();
+  const offerKeys = (offers.items || []).map((o) => o.key);
+  const regular = listPurchasableItems();
+  const decorative = await listDecorativeShopItems();
+
+  const ordered = [];
+  const seen = new Set();
+  const push = (item) => {
+    if (!item || seen.has(item.key)) return;
+    seen.add(item.key);
+    ordered.push(item);
+  };
+  for (const key of offerKeys) push(regular.find((i) => i.key === key));
+  regular.forEach(push);
+  decorative.forEach(push);
+
+  const result = [];
+  for (const item of ordered) result.push({ ...item, priceInfo: await getPriceInfo(item.key) });
+  return result;
+}
+
 /**
  * Buys `quantity` of `itemKey` for a player in a group.
  * Returns { success, reason? , item?, quantity?, newInventoryQty?, remainingCoins? }.
@@ -54,7 +91,7 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
   // Battle cards (Phase 4) and decorative collectibles (Phase 6) are
   // one-time unlocks (stackLimit 1) — buying one you already own would
   // otherwise just silently waste coins.
-  if (def.category === 'CARD' || def.category === 'DECORATIVE') {
+  if (def.category === 'CARD' || def.category === 'DECORATIVE' || def.category === 'PROFILE_TEMPLATE') {
     const owned = await inventoryModel.getItemQuantity(telegramId, groupId, itemKey);
     if (owned >= (def.stackLimit || 1)) {
       return { success: false, reason: 'ALREADY_OWNED' };
@@ -69,7 +106,8 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
   }
 
   const stats = (await playerStatsModel.getOrCreatePlayerStats(telegramId, groupId)).stats;
-  const totalPrice = def.price * quantity;
+  const unitPrice = (await getPriceInfo(itemKey)).final;
+  const totalPrice = unitPrice * quantity;
   if (stats.coins < totalPrice) {
     return { success: false, reason: 'NOT_ENOUGH_COINS', price: totalPrice };
   }
@@ -99,7 +137,8 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
     quantity,
     newInventoryQty,
     remainingCoins: spendResult.stats.coins,
+    paid: totalPrice,
   };
 }
 
-module.exports = { listPurchasableItems, listDecorativeShopItems, getItemDef, buyItem };
+module.exports = { listPurchasableItems, listDecorativeShopItems, listShopCatalog, getPriceInfo, getItemDef, buyItem };

@@ -3,6 +3,40 @@ const playerStatsModel = require('../../database/models/playerStatsModel');
 const showcaseModel = require('../../database/models/showcaseModel');
 const { renderProfile, renderWelcome } = require('../views/profileView');
 const { mainMenu } = require('../keyboards');
+const profileCardService = require('../../services/profileCardService');
+const { escapeHtml } = require('../../utils/format');
+const { getThreadId } = require('../../utils/topic');
+
+/**
+ * Sends the image profile card (cached by Telegram file_id, see profileCardService).
+ * Falls back to the old text profile when the card can't be produced
+ * (e.g. the canvas library isn't installed) so /profile never breaks.
+ */
+async function replyProfile(ctx, finalStats) {
+  const { user, groupId } = ctx.state;
+  try {
+    const threadId = getThreadId(ctx);
+    await profileCardService.sendProfileCard(
+      ctx.telegram,
+      ctx.chat.id,
+      { telegramId: user.telegramId, groupId, displayName: user.displayName, username: user.username },
+      {
+        autoDelete: true,
+        extra: {
+          caption: `⚔️ <b>${escapeHtml(user.displayName)}</b>`,
+          parse_mode: 'HTML',
+          ...(threadId ? { message_thread_id: threadId } : {}),
+          ...mainMenu(),
+        },
+      }
+    );
+    return;
+  } catch (err) {
+    if (err.message !== 'PROFILE_CARD_UNAVAILABLE') console.error('[profile] card failed, using text profile:', err);
+  }
+  const showcaseItems = await showcaseModel.getShowcase(user.telegramId, groupId);
+  await ctx.reply(renderProfile(user.displayName, finalStats, showcaseItems), { parse_mode: 'HTML', ...mainMenu() });
+}
 
 /**
  * Regen is now applied for everyone by a cron tick (src/regen/regenService.js),
@@ -29,9 +63,7 @@ function register(bot) {
       return;
     }
 
-    // Phase 6: decorative showcase items chosen from «جیب من» are shown here.
-    const showcaseItems = await showcaseModel.getShowcase(user.telegramId, groupId);
-    await ctx.reply(renderProfile(user.displayName, finalStats, showcaseItems), { parse_mode: 'HTML', ...mainMenu() });
+    await replyProfile(ctx, finalStats);
   });
 
   bot.action('menu:profile', async (ctx) => {
@@ -39,8 +71,7 @@ function register(bot) {
     const { user, groupId } = ctx.state;
     const stats = (await playerStatsModel.getOrCreatePlayerStats(user.telegramId, groupId)).stats;
     const finalStats = await applyPassiveRegen(user.telegramId, groupId, stats);
-    const showcaseItems = await showcaseModel.getShowcase(user.telegramId, groupId);
-    await ctx.reply(renderProfile(user.displayName, finalStats, showcaseItems), { parse_mode: 'HTML', ...mainMenu() });
+    await replyProfile(ctx, finalStats);
   });
 }
 

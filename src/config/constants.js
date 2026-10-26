@@ -30,8 +30,8 @@ module.exports = {
   },
 
   // ---------- Coins ----------
-  COINS_PVP_WIN: 100,
-  COINS_PVP_LOSS: 10,
+  COINS_PVP_WIN: 40, // was 100 — battle-participation coins deliberately lowered (Phase 8)
+  COINS_PVP_LOSS: 4, // was 10
   COINS_TRAINING: 10,
   COINS_DAILY_MIN: 100,
   COINS_DAILY_MAX: 400,
@@ -206,7 +206,7 @@ module.exports = {
   TEAM_MAX_ROUNDS: 32,
   PVE_MAX_ROUNDS: 25,
   PVE_XP_REWARD: 30,
-  PVE_COIN_REWARD: 40,
+  PVE_COIN_REWARD: 15, // was 40 (a win adds +50%)
 
   // ================= PHASE 6 =================
 
@@ -242,4 +242,24 @@ module.exports = {
   // instead of being wasted — see spec §6.1.
   TREASURE_CHEST_FALLBACK_COINS: 150,
   TREASURE_CHEST_FALLBACK_XP: 80,
+
+  // ================= PHASE 8 =================
+
+  // ---------- Image-card profile ----------
+  PROFILE_CARD_WIDTH: 1280,
+  PROFILE_CARD_HEIGHT: 720, // 16:9
+  PROFILE_CARD_JPEG_QUALITY: 92,
+  PROFILE_CARD_XP_BAR_STEP_PERCENT: 2, // xp bar is quantised so tiny xp gains don't invalidate the cached card
+  PROFILE_CARD_LAYOUT_VERSION: 1, // bump after editing src/config/profileLayout.js to force every card to re-render
+
+  // ---------- /start gate ----------
+  START_GATE_NOTICE_COOLDOWN_MS: 5 * 1000, // per user: don't flood the group if they spam commands
+
+  // ---------- Weekly shop offers ----------
+  WEEKLY_OFFER_COUNT: 3,
+  WEEKLY_OFFER_PERCENTS: [10, 15, 20, 25, 30],
+  WEEKLY_OFFER_DAYS: 7,
+  SHOP_POST_SPACING_MS: 1500, // pause between product posts so groups' flood limit isn't hit
+  SHOP_POST_SWEEP_CRON: '*/10 * * * *',
+  SHOP_INLINE_MAX_RESULTS: 50,
 };

@@ -28,4 +28,27 @@ async function setBanned(telegramId, isBanned) {
   return rows[0] || null;
 }
 
-module.exports = { upsertUser, getUser, setBanned };
+/** Called the first time the user talks to the bot in private (= pressed Start). */
+async function markStarted(telegramId) {
+  const { rows } = await query(
+    `UPDATE users SET started_bot = TRUE, started_at = COALESCE(started_at, now()), updated_at = now()
+     WHERE telegram_id = $1 RETURNING *`,
+    [telegramId]
+  );
+  return rows[0] || null;
+}
+
+/** Groups the player already has a profile in (used to pick the group for DM purchases). */
+async function listGroupsOfPlayer(telegramId) {
+  const { rows } = await query(
+    `SELECT g.group_id, g.group_name
+     FROM player_group_stats pgs
+     JOIN groups g ON g.group_id = pgs.group_id
+     WHERE pgs.telegram_id = $1
+     ORDER BY pgs.last_activity_at DESC`,
+    [telegramId]
+  );
+  return rows;
+}
+
+module.exports = { upsertUser, getUser, setBanned, markStarted, listGroupsOfPlayer };

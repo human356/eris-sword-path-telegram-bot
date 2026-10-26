@@ -19,6 +19,8 @@ module.exports = {
   PGPASSWORD: process.env.PGPASSWORD,
   PGDATABASE: process.env.PGDATABASE,
   SUPER_ADMIN_IDS: parseAdminIds(process.env.SUPER_ADMIN_IDS),
+  // Optional: only used as a fallback when Telegram's getMe hasn't filled ctx.botInfo yet.
+  BOT_USERNAME: (process.env.BOT_USERNAME || '').replace(/^@/, ''),
   DATABASE_SSL: process.env.DATABASE_SSL === 'true',
   NODE_ENV: process.env.NODE_ENV || 'development',
 };

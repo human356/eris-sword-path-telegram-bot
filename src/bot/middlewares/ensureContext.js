@@ -1,6 +1,7 @@
 'use strict';
 const userModel = require('../../database/models/userModel');
 const groupModel = require('../../database/models/groupModel');
+const env = require('../../config/env');
 const { displayNameOf } = require('../../utils/format');
 
 /**
@@ -31,7 +32,7 @@ async function ensureContext(ctx, next) {
   }
 
   ctx.state = ctx.state || {};
-  ctx.state.user = { telegramId: user.telegram_id, displayName: user.display_name, username: user.username };
+  ctx.state.user = { telegramId: user.telegram_id, displayName: user.display_name, username: user.username, started: !!user.started_bot };
 
 
 if (!isGroup) {
@@ -47,6 +48,33 @@ if (!isGroup) {
     ctx.message &&
     typeof ctx.message.text === 'string' &&
     ctx.message.text.startsWith('/start')
+  ) {
+    return next();
+  }
+
+  // Inline queries ("@bot shop" typed in a group's text box) have no chat.
+  if (ctx.updateType === 'inline_query') {
+    return next();
+  }
+
+  // Super admins manage the bot's pictures in private: they send photos / texts
+  // (see bot/commands/adminImages.js), which must not be dropped here.
+  if (
+    ctx.updateType === 'message' &&
+    ctx.message &&
+    env.SUPER_ADMIN_IDS.includes(ctx.from.id) &&
+    (ctx.message.photo || ctx.message.document || (ctx.message.text && !ctx.message.text.startsWith('/')))
+  ) {
+    return next();
+  }
+
+  // Admin panel commands in private.
+  if (
+    ctx.updateType === 'message' &&
+    ctx.message &&
+    typeof ctx.message.text === 'string' &&
+    /^\/(admin|images)(@\w+)?(\s|$)/i.test(ctx.message.text) &&
+    env.SUPER_ADMIN_IDS.includes(ctx.from.id)
   ) {
     return next();
   }

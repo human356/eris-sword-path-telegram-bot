@@ -34,7 +34,7 @@
     "dailyLimit": null,
     "stackLimit": 5,
     "healPercentMin": 0.05,
-    "healPercentMax": 0.10,
+    "healPercentMax": 0.1,
     "usableInBattle": true,
     "usableOutOfBattle": false,
     "purchasable": true,
@@ -81,7 +81,6 @@
     "purchasable": true,
     "description": "در راند بعد، سلامتی واقعی شما در گزارش راند برای حریف به‌صورت «❓» نمایش داده می‌شود."
   },
-
   "METEOR_STRIKE": {
     "label": "کارت حمله شهابی",
     "emoji": "☄️",
@@ -91,7 +90,7 @@
     "accuracy": 0.95,
     "damageMultiplier": 3.0,
     "executeThreshold": 20,
-    "executeChance": 0.70,
+    "executeChance": 0.7,
     "price": 2800,
     "dailyLimit": null,
     "stackLimit": 1,
@@ -107,7 +106,7 @@
     "isMove": true,
     "staminaCost": 45,
     "accuracy": 0.85,
-    "damagePercentOfMaxHp": 0.30,
+    "damagePercentOfMaxHp": 0.3,
     "price": 500,
     "dailyLimit": null,
     "stackLimit": 1,
@@ -122,7 +121,7 @@
     "category": "CARD",
     "isMove": true,
     "staminaCost": 15,
-    "accuracy": 0.90,
+    "accuracy": 0.9,
     "damageMultiplier": 0.6,
     "fakeReportMultiplier": 0.3,
     "price": 780,
@@ -227,7 +226,6 @@
     "purchasable": true,
     "description": "آسیب مستقیم وارد نمی‌کند، اما دفاع (گارد/سپر) حریف را برای راند بعد کاملاً بی‌اثر می‌کند. بیشتر برای نبردهای چندنفره کاربرد دارد."
   },
-
   "TREASURE_CHEST": {
     "label": "صندوقچهٔ گنج افسانه‌ای",
     "emoji": "🎁",
@@ -240,7 +238,6 @@
     "purchasable": true,
     "description": "با باز کردنش (از «جیب من») ۱۰ جایزهٔ تصادفی می‌گیرید: سکه، XP، آیتم مصرفی، آیتم تزئینی و به‌ندرت یک کارت مبارزه. نتیجه در گروه هم اعلام می‌شود."
   },
-
   "TITLE_SWORD_DISCIPLE": {
     "label": "عنوان «شاگرد شمشیر»",
     "emoji": "🗡️",
@@ -432,5 +429,65 @@
     "usableOutOfBattle": false,
     "purchasable": true,
     "description": "یک قاب نمایشی برای ویترین پروفایل. هیچ اثری روی نبرد ندارد."
+  },
+  "TPL_FLAME": {
+    "label": "قالب پروفایل شعله‌ی اریس",
+    "emoji": "🔥",
+    "category": "PROFILE_TEMPLATE",
+    "price": 1200,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "description": "قالب پولی پروفایل عکسی با تم آتش و موهای سرخ اریس. فقط ظاهر پروفایل را عوض می‌کند و هیچ اثری روی نبرد ندارد."
+  },
+  "TPL_FROST": {
+    "label": "قالب پروفایل یخ‌بندان",
+    "emoji": "❄️",
+    "category": "PROFILE_TEMPLATE",
+    "price": 1200,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "description": "قالب پولی پروفایل عکسی با تم یخ و برف (الهام‌گرفته از طلسم‌های آبی رودیوس). فقط ظاهر دارد و هیچ اثری روی نبرد ندارد."
+  },
+  "TPL_ROYAL": {
+    "label": "قالب پروفایل سلطنتی بوریاس",
+    "emoji": "👑",
+    "category": "PROFILE_TEMPLATE",
+    "price": 1800,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "description": "قالب پولی پروفایل عکسی با تم سلطنتی خاندان بوریاس. فقط ظاهر دارد و هیچ اثری روی نبرد ندارد."
+  },
+  "TPL_FOREST": {
+    "label": "قالب پروفایل جنگل سیلفی",
+    "emoji": "🍃",
+    "category": "PROFILE_TEMPLATE",
+    "price": 1500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "description": "قالب پولی پروفایل عکسی با تم جنگل سبز (الهام‌گرفته از سیلفی). فقط ظاهر دارد و هیچ اثری روی نبرد ندارد."
+  },
+  "TPL_SHADOW": {
+    "label": "قالب پروفایل سایه‌ی خدای شمشیر",
+    "emoji": "🌑",
+    "category": "PROFILE_TEMPLATE",
+    "price": 2500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "description": "قالب پولی پروفایل عکسی با تم تاریک و باشکوه خدای شمشیر. فقط ظاهر دارد و هیچ اثری روی نبرد ندارد."
   }
 }
