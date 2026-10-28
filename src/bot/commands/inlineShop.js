@@ -76,13 +76,15 @@ async function onInlineQuery(ctx) {
     // still shows the picture above the text through a link preview.
     if (env.WEBAPP_URL && hasPicture) {
       const sig = await imageService.getSignature(slots.itemSlot(item.key)).catch(() => 'x');
-      const img = `${env.WEBAPP_URL}/img/item/${encodeURIComponent(item.key)}.jpg?v=${encodeURIComponent(sig)}`;
+      const base = `${env.WEBAPP_URL}/img/item/${encodeURIComponent(item.key)}.jpg?v=${encodeURIComponent(sig)}`;
+      const img = `${base}&s=800`;
+      const thumb = `${base}&s=160`;
       results.push({
         type: 'article',
         id: `shop_${item.key}`.slice(0, 64),
         title,
         description: `${priceLine}\n${item.description || ''}`.trim().slice(0, 200),
-        thumbnail_url: img,
+        thumbnail_url: thumb,
         input_message_content: {
           message_text: caption,
           parse_mode: 'HTML',
@@ -113,13 +115,35 @@ async function onInlineQuery(ctx) {
     }
   }
 
-  await ctx.answerInlineQuery(results, { cache_time: 20, is_personal: false, next_offset: nextOffset }).catch((err) => {
-    console.error('[inline-shop] answerInlineQuery failed:', err.message);
-  });
+  try {
+    await ctx.answerInlineQuery(results, { cache_time: 20, is_personal: false, next_offset: nextOffset });
+  } catch (err) {
+    // One bad result makes Telegram reject the whole answer and the shop shows nothing. Retry with
+    // plain text rows (no thumbnails / photos / link previews) so the shop always opens.
+    console.error('[inline-shop] answerInlineQuery failed, retrying with plain results:', err.message);
+    const plain = catalog.map((item) => ({
+      type: 'article',
+      id: `shop_${item.key}`.slice(0, 64),
+      title: `${item.emoji || ''} ${item.label}`.trim(),
+      description: (item.priceInfo.percent > 0 ? `🔥 ${item.priceInfo.final} سکه (${item.priceInfo.percent}% تخفیف)` : `🪙 ${item.priceInfo.final} سکه`),
+      input_message_content: { message_text: productCaption(item, item.priceInfo), parse_mode: 'HTML' },
+      reply_markup: { inline_keyboard: [[{ text: '🛒 خرید در پیوی ربات', url: buyUrl(username, item.key) }]] },
+    }));
+    await ctx.answerInlineQuery(plain, { cache_time: 5, is_personal: false, next_offset: nextOffset }).catch((err2) => {
+      console.error('[inline-shop] plain answer failed too:', err2.message);
+    });
+  }
 }
 
 function register(bot) {
-  bot.on('inline_query', onInlineQuery);
+  bot.on('inline_query', async (ctx) => {
+    try {
+      await onInlineQuery(ctx);
+    } catch (err) {
+      console.error('[inline-shop] handler failed:', err);
+      await ctx.answerInlineQuery([], { cache_time: 1 }).catch(() => {});
+    }
+  });
 }
 
 module.exports = { register, parseQuery };

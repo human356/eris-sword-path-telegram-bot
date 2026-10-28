@@ -9,6 +9,7 @@ const P = require('../character/parts');
 const renderer = require('../character/renderer');
 const { requireTelegramUser } = require('./auth');
 const { displayNameOf } = require('../utils/format');
+const { loadCanvas, drawCover } = require('../utils/canvasDraw');
 
 /**
  * Character Mini App (Telegram WebApp), served by the same Express server as the health check:
@@ -29,6 +30,21 @@ function sniffMime(buf) {
   if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
   if (buf.slice(0, 4).toString() === 'RIFF') return 'image/webp';
   return 'application/octet-stream';
+}
+
+const thumbCache = new Map();
+async function squareJpeg(buf, size) {
+  const lib = loadCanvas();
+  if (!lib) return null;
+  try {
+    const img = await lib.loadImage(buf);
+    const cv = lib.createCanvas(size, size);
+    drawCover(cv.getContext('2d'), img, 0, 0, size, size);
+    return await cv.encode('jpeg', 80);
+  } catch (err) {
+    console.error('[webapp] thumbnail failed:', err.message);
+    return null;
+  }
 }
 
 function parseGroup(req) {
@@ -65,8 +81,23 @@ function createRouter() {
     try {
       const key = String(req.params.file).replace(/\.(jpg|jpeg|png|webp)$/i, '');
       if (!/^[A-Z0-9_]+$/.test(key)) return res.status(404).end();
-      const buf = await imageService.getBuffer(slots.itemSlot(key));
+      let buf = await imageService.getBuffer(slots.itemSlot(key));
       if (!buf) return res.status(404).end();
+      // ?s=<px>: small square JPEG (inline-shop thumbnails must be tiny and fast, Telegram fetches ~50 at once)
+      const size = Math.min(1024, Math.max(0, parseInt(req.query.s, 10) || 0));
+      if (size) {
+        const sig = await imageService.getSignature(slots.itemSlot(key)).catch(() => 'x');
+        const cacheKey = `${key}:${sig}:${size}`;
+        let small = thumbCache.get(cacheKey);
+        if (!small) {
+          small = await squareJpeg(buf, size);
+          if (small) {
+            thumbCache.set(cacheKey, small);
+            if (thumbCache.size > 400) thumbCache.delete(thumbCache.keys().next().value);
+          }
+        }
+        if (small) buf = small;
+      }
       res.set('Content-Type', sniffMime(buf));
       res.set('Cache-Control', 'public, max-age=3600');
       return res.send(buf);

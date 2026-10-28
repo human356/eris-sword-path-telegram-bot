@@ -18,13 +18,27 @@ const { getThreadId, threadExtra } = require('../../utils/topic');
 const { displayNameOf } = require('../../utils/format');
 
 /**
+ * The message a text really replies to, or null. In forum groups EVERY message sent inside a topic
+ * carries a `reply_to_message` pointing at the topic's first (service) message — that is not a reply
+ * and must not turn the plain «اریس» panel into the profile/character picker.
+ */
+function realReplyOf(msg) {
+  const r = msg && msg.reply_to_message;
+  if (!r) return null;
+  if (r.forum_topic_created || r.forum_topic_edited || r.forum_topic_closed || r.forum_topic_reopened || r.general_forum_topic_hidden || r.general_forum_topic_unhidden) return null;
+  if (msg.is_topic_message && msg.message_thread_id && r.message_id === msg.message_thread_id) return null;
+  if (!r.from && !r.sender_chat) return null; // service messages
+  return r;
+}
+
+/**
  * Who does a reply to «اریس» point at?
  *  - the replied message is only an @username (or a text-mention) -> that person;
  *  - otherwise the author of the replied message.
  * Returns { target } or { error }.
  */
 async function resolveReplyTarget(ctx) {
-  const r = ctx.message && ctx.message.reply_to_message;
+  const r = realReplyOf(ctx.message);
   if (!r) return null;
   const text = (r.text || r.caption || '').trim();
   const entities = r.entities || r.caption_entities || [];
@@ -84,9 +98,10 @@ function register(bot, multiplayerBattleManager) {
     const { user, groupId } = ctx.state;
 
     // «اریس» as a reply to someone (or to a message that is just their @username): ask what to show.
-    if (ctx.message && ctx.message.reply_to_message) {
+    if (realReplyOf(ctx.message)) {
       const res = await resolveReplyTarget(ctx);
-      if (res && res.error) return ctx.reply(res.error);
+      // replying to a bot / unknown user: just open the normal Eris panel below
+      if (res && res.error && !/ربات/.test(res.error)) return ctx.reply(res.error);
       if (res && res.target) {
         const t = res.target;
         return ctx.reply(
