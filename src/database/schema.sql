@@ -427,3 +427,15 @@ CREATE TABLE IF NOT EXISTS group_shop_settings (
   last_posted_at  TIMESTAMPTZ,
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Semi-pixel character (per player per group, like inventory/coins). `appearance` = gender, face,
+-- ears, eyes, mouth, nose, eyebrow/hair/mustache types + colours; `outfit` = worn gear per slot.
+-- The «شخصیت» section is unlocked by owning the CHARACTER_DOLL shop item in that group.
+CREATE TABLE IF NOT EXISTS player_character (
+  telegram_id  BIGINT NOT NULL REFERENCES users(telegram_id) ON DELETE CASCADE,
+  group_id     BIGINT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  appearance   JSONB NOT NULL DEFAULT '{}'::jsonb,
+  outfit       JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (telegram_id, group_id)
+);

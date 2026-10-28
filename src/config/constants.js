@@ -250,6 +250,7 @@ module.exports = {
   PROFILE_CARD_HEIGHT: 720, // 16:9
   PROFILE_CARD_JPEG_QUALITY: 92,
   PROFILE_CARD_XP_BAR_STEP_PERCENT: 2, // xp bar is quantised so tiny xp gains don't invalidate the cached card
+  CHARACTER_CARD_LAYOUT_VERSION: 1, // bump after editing src/character/card.js to force re-render
   PROFILE_CARD_LAYOUT_VERSION: 2, // bump after editing src/config/profileLayout.js to force every card to re-render
 
   // ---------- /start gate ----------

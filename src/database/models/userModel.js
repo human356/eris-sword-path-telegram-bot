@@ -20,6 +20,15 @@ async function getUser(telegramId) {
   return rows[0] || null;
 }
 
+/** Case-insensitive lookup by @username (without the @). */
+async function getUserByUsername(username) {
+  const { rows } = await query(
+    'SELECT * FROM users WHERE lower(username) = lower($1) ORDER BY updated_at DESC LIMIT 1',
+    [String(username || '').replace(/^@/, '')]
+  );
+  return rows[0] || null;
+}
+
 async function setBanned(telegramId, isBanned) {
   const { rows } = await query(
     'UPDATE users SET is_banned = $2, updated_at = now() WHERE telegram_id = $1 RETURNING *',
@@ -51,4 +60,4 @@ async function listGroupsOfPlayer(telegramId) {
   return rows;
 }
 
-module.exports = { upsertUser, getUser, setBanned, markStarted, listGroupsOfPlayer };
+module.exports = { upsertUser, getUser, getUserByUsername, setBanned, markStarted, listGroupsOfPlayer };

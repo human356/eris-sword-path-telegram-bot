@@ -14,6 +14,9 @@ function mainMenu() {
       Markup.button.callback('🏆 رتبه‌بندی', 'menu:ranking')
     ],
     [
+      Markup.button.callback('🎭 شخصیت', 'menu:character'),
+    ],
+    [
       Markup.button.callback('🎯 روزانه', 'menu:daily'),
       Markup.button.callback('🔥 خشم اریس', 'menu:rage')
     ],

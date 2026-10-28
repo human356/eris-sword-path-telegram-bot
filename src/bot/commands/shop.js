@@ -2,6 +2,70 @@
 const shopService = require('../../economy/shopService');
 const { Markup } = require('telegraf');
 const { num, escapeHtml } = require('../../utils/format');
+const imageService = require('../../services/imageService');
+const slots = require('../../config/imageSlots');
+const { productCaption, botUsernameOf, buyUrl } = require('../../utils/shopText');
+
+/**
+ * In-chat paged shop: one product per page (photo + text) with ◀ قبلی / بعدی ▶ buttons, so every
+ * item of the list is reachable. Pages wrap around.
+ */
+function pageKeyboard(item, index, total, username, groupId) {
+  const prev = (index - 1 + total) % total;
+  const next = (index + 1) % total;
+  const rows = [
+    [
+      Markup.button.callback('◀️ قبلی', `shop:page:${prev}`),
+      Markup.button.callback(`${index + 1} / ${total}`, 'shop:noop'),
+      Markup.button.callback('بعدی ▶️', `shop:page:${next}`),
+    ],
+    [Markup.button.callback(`🛒 خرید با ${num(item.priceInfo.final)} سکه`, `shop:buy:${item.key}`)],
+  ];
+  if (username) rows.push([Markup.button.url('🔗 خرید در پیوی ربات', buyUrl(username, item.key, groupId))]);
+  return Markup.inlineKeyboard(rows);
+}
+
+async function showPage(ctx, requested) {
+  const catalog = await shopService.listShopCatalog();
+  if (catalog.length === 0) return ctx.reply('فروشگاه فعلاً خالی است.');
+  const total = catalog.length;
+  const index = ((Number(requested) || 0) % total + total) % total;
+  const item = catalog[index];
+  const username = await botUsernameOf(ctx.telegram, ctx.botInfo);
+  const caption = productCaption(item, item.priceInfo);
+  const keyboard = pageKeyboard(item, index, total, username, ctx.state.groupId);
+  const photo = await imageService.photoFor(slots.itemSlot(item.key)).catch(() => null);
+  const current = ctx.callbackQuery && ctx.callbackQuery.message;
+
+  // Same media type as the message on screen -> edit in place (fast, no flicker).
+  if (current) {
+    const isPhoto = !!current.photo;
+    try {
+      if (photo && isPhoto && typeof photo.input === 'string') {
+        await ctx.editMessageMedia({ type: 'photo', media: photo.input, caption, parse_mode: 'HTML' }, keyboard);
+        return undefined;
+      }
+      if (!photo && !isPhoto) {
+        await ctx.editMessageText(caption, { parse_mode: 'HTML', ...keyboard });
+        return undefined;
+      }
+    } catch (err) {
+      if (/not modified/i.test(String(err.message))) return undefined;
+    }
+    await ctx.deleteMessage().catch(() => {});
+  }
+
+  if (photo) {
+    try {
+      const msg = await ctx.replyWithPhoto(photo.input, { caption, parse_mode: 'HTML', ...keyboard });
+      await photo.remember(msg).catch(() => {});
+      return msg;
+    } catch (err) {
+      console.error('[shop] photo page failed, sending text:', item.key, err.message);
+    }
+  }
+  return ctx.reply(caption, { parse_mode: 'HTML', ...keyboard });
+}
 
 /**
  * The shop now lives in the group's text box: «@botusername shop» lists the products
@@ -26,6 +90,7 @@ async function showShop(ctx) {
   await ctx.reply(text, {
     parse_mode: 'HTML',
     ...Markup.inlineKeyboard([
+      [Markup.button.callback('📖 مرور محصولات (قبلی / بعدی)', 'shop:page:0')],
       [Markup.button.switchToCurrentChat('🛒 باز کردن فروشگاه', 'shop')],
       [Markup.button.callback('🎒 جیب من', 'menu:inventory')],
     ]),
@@ -37,6 +102,13 @@ function register(bot) {
     if (!ctx.state.isGroup) return;
     await showShop(ctx);
   });
+
+  bot.action(/^shop:page:(\d+)$/, async (ctx) => {
+    await ctx.answerCbQuery().catch(() => {});
+    if (!ctx.state.isGroup) return undefined;
+    return showPage(ctx, Number(ctx.match[1]));
+  });
+  bot.action('shop:noop', (ctx) => ctx.answerCbQuery().catch(() => {}));
 
   bot.action('menu:shop', async (ctx) => {
     await ctx.answerCbQuery();

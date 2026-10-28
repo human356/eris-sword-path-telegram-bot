@@ -107,3 +107,20 @@ In @BotFather enable **Inline Mode** (`/setinline`, placeholder e.g. `shop`) —
 
 Picture file names (`assets/…`): `templates/DEFAULT.png`, `templates/TPL_FLAME.png`, `items/<ITEM_KEY>.png`, `levels/<N>.png`, `levels/default.png`, `shop/banner.png`. Check with `npm run check:assets`.  
 Image prompts for AI generators: [`docs/AI_IMAGE_PROMPTS.md`](docs/AI_IMAGE_PROMPTS.md) (16:9 profile templates + placement map) and [`docs/ITEM_IMAGE_PROMPTS.md`](docs/ITEM_IMAGE_PROMPTS.md) (decorative items, paid templates, products).
+
+## Phase 9 — character, Mini App, shop paging, battle result picture
+
+**Install:** `npm install` (adds `ejs` for the Mini App pages). Without `ejs` the bot still runs, only the Mini App is disabled (a warning is logged).
+
+New environment variable: **`WEBAPP_URL`** — public **HTTPS** base URL of this server (e.g. `https://eris.example.com`; on Render `RENDER_EXTERNAL_URL` is used automatically). It hosts the Mini App and the shop thumbnails. The same Express server (`PORT`) serves everything. No BotFather setup is needed: the bot opens the Mini App with a `web_app` button in private chat.
+
+| Feature | How it works |
+|---|---|
+| **عروسک (unlock)** | Shop item `CHARACTER_DOLL` (400 coins, one-time, always first in the shop list). Owning it in a group unlocks «شخصیت» for that group (character data is per player per group, like coins). |
+| **شخصیت** | `/character`, the word «شخصیت» or the main-menu button posts an **8:10 (1080×1350)** card: the player's current profile background, the full-body semi-pixel character in the middle-top, then name, @username, level, rank, XP bar, stats and worn gear. Rendered once per look (hash) and re-sent by `file_id`. |
+| **اریس + reply** | Reply to anyone's message (or to a message that is only an `@username`) with «اریس» → the bot asks what to see, with **پروفایل** / **شخصیت** buttons; the chosen card is posted with the target's @username tagged. Only the person who called Eris can press the buttons. |
+| **Mini App** | Button «🎨 شخصی‌سازی شخصیت» under the card → `/start char_<groupId>` in private → `web_app` button. Pages (EJS): home → «شخصی‌سازی شخصیت» editor (gender, skin, face, ears, eyes, eyebrow, nose, mouth, hair, mustache + colours, outfit slots). Telegram `initData` is verified (HMAC, ≤24 h old) on every API call; the server re-validates the look and only lets players wear gear they own. Code: `src/webapp/`. |
+| **Gear** | 23 purchasable items `GEAR_*` (hat, top, bottom, shoes, gloves, cape, weapon, accessory) at the end of the shop list; default outfit is free. Catalog of all parts and gear sprites: `src/character/parts.js`. |
+| **Pixel engine** | `src/character/sprite.js` draws the character procedurally (works with no art). Optional artist PNG layers in `assets/character/<kind>/<id>.png` replace single parts — see [`docs/CHARACTER_IMAGE_PROMPTS.md`](docs/CHARACTER_IMAGE_PROMPTS.md). Same code runs in the browser (live preview) and in Node. |
+| **Battle result picture** | After a win the bot **replies to the last round report** with a 1280×720 picture: winner on the left, loser on the right, Eris (win/lose picture) on top, status panels (HP, XP, coins, rating, respect, streak). Works for duels, training vs Eris, team and free-for-all; draws and any rendering failure fall back to the old text. Pictures: `assets/results/eris_win.png`, `eris_lose.png`, `bg.png` (or `/admin` → 🏆) — prompts in [`docs/BATTLE_RESULT_PROMPTS.md`](docs/BATTLE_RESULT_PROMPTS.md). |
+| **Shop fixes** | Inline shop now pages through the whole catalog (`next_offset`, 50 per page). With `WEBAPP_URL` set, products are rows with a thumbnail **and** visible title/price/description (Telegram hides text of photo-type inline results); captions are trimmed under 1024 chars so photos never fail. `/shop` → «📖 مرور محصولات» is an in-chat paged shop with ◀ قبلی / بعدی ▶ and a buy button. |

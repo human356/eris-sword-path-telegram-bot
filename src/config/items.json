@@ -1,4 +1,17 @@
 {
+  "CHARACTER_DOLL": {
+    "label": "عروسک",
+    "emoji": "🪆",
+    "category": "CHARACTER_UNLOCK",
+    "price": 400,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "pinFirst": true,
+    "description": "با خرید عروسک، بخش «شخصیت» برای شما باز می‌شود: یک شخصیت نیمه‌پیکسلی شخصی‌سازی‌شدنی (جنسیت، صورت، چشم، مو، سیبیل و ...) که با مینی‌اپ ساخته می‌شود و با دکمهٔ «شخصیت» در گروه نمایش داده می‌شود."
+  },
   "STAMINA_PILL": {
     "label": "قرص استامینا",
     "emoji": "💊",
@@ -88,7 +101,7 @@
     "isMove": true,
     "staminaCost": 90,
     "accuracy": 0.95,
-    "damageMultiplier": 3.0,
+    "damageMultiplier": 3,
     "executeThreshold": 20,
     "executeChance": 0.7,
     "price": 2800,
@@ -489,5 +502,373 @@
     "usableOutOfBattle": false,
     "purchasable": true,
     "description": "قالب پولی پروفایل عکسی با تم تاریک و باشکوه خدای شمشیر. فقط ظاهر دارد و هیچ اثری روی نبرد ندارد."
+  },
+  "GEAR_LEATHER_ARMOR": {
+    "label": "زره چرمی",
+    "emoji": "👕",
+    "category": "CHARACTER_GEAR",
+    "price": 700,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "top",
+      "id": "LEATHER_ARMOR"
+    },
+    "description": "لوازم شخصیت (لباس بالاتنه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_IRON_ARMOR": {
+    "label": "زره آهنی",
+    "emoji": "👕",
+    "category": "CHARACTER_GEAR",
+    "price": 1200,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "top",
+      "id": "IRON_ARMOR"
+    },
+    "description": "لوازم شخصیت (لباس بالاتنه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_MAGE_ROBE": {
+    "label": "ردای جادوگر",
+    "emoji": "👕",
+    "category": "CHARACTER_GEAR",
+    "price": 800,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "top",
+      "id": "MAGE_ROBE"
+    },
+    "description": "لوازم شخصیت (لباس بالاتنه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_NOBLE_COAT": {
+    "label": "لباس اشرافی",
+    "emoji": "👕",
+    "category": "CHARACTER_GEAR",
+    "price": 1000,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "top",
+      "id": "NOBLE_COAT"
+    },
+    "description": "لوازم شخصیت (لباس بالاتنه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_LEATHER_PANTS": {
+    "label": "شلوار چرمی",
+    "emoji": "👖",
+    "category": "CHARACTER_GEAR",
+    "price": 400,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "bottom",
+      "id": "LEATHER_PANTS"
+    },
+    "description": "لوازم شخصیت (شلوار). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_IRON_GREAVES": {
+    "label": "ساق‌بند آهنی",
+    "emoji": "👖",
+    "category": "CHARACTER_GEAR",
+    "price": 800,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "bottom",
+      "id": "IRON_GREAVES"
+    },
+    "description": "لوازم شخصیت (شلوار). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_LEATHER_BOOTS": {
+    "label": "چکمه چرمی",
+    "emoji": "👢",
+    "category": "CHARACTER_GEAR",
+    "price": 350,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "shoes",
+      "id": "LEATHER_BOOTS"
+    },
+    "description": "لوازم شخصیت (کفش). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_IRON_BOOTS": {
+    "label": "چکمه آهنی",
+    "emoji": "👢",
+    "category": "CHARACTER_GEAR",
+    "price": 500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "shoes",
+      "id": "IRON_BOOTS"
+    },
+    "description": "لوازم شخصیت (کفش). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_LEATHER_GLOVES": {
+    "label": "دستکش چرمی",
+    "emoji": "🧤",
+    "category": "CHARACTER_GEAR",
+    "price": 300,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "gloves",
+      "id": "LEATHER_GLOVES"
+    },
+    "description": "لوازم شخصیت (دستکش). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_IRON_GAUNTLETS": {
+    "label": "دستکش آهنی",
+    "emoji": "🧤",
+    "category": "CHARACTER_GEAR",
+    "price": 600,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "gloves",
+      "id": "IRON_GAUNTLETS"
+    },
+    "description": "لوازم شخصیت (دستکش). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_RED_CAPE": {
+    "label": "شنل قرمز",
+    "emoji": "🧣",
+    "category": "CHARACTER_GEAR",
+    "price": 700,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "cape",
+      "id": "RED_CAPE"
+    },
+    "description": "لوازم شخصیت (شنل). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_ROYAL_CAPE": {
+    "label": "شنل سلطنتی",
+    "emoji": "🧣",
+    "category": "CHARACTER_GEAR",
+    "price": 1300,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "cape",
+      "id": "ROYAL_CAPE"
+    },
+    "description": "لوازم شخصیت (شنل). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_KNIGHT_HELM": {
+    "label": "کلاه‌خود شوالیه",
+    "emoji": "🎩",
+    "category": "CHARACTER_GEAR",
+    "price": 600,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "hat",
+      "id": "KNIGHT_HELM"
+    },
+    "description": "لوازم شخصیت (کلاه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_WIZARD_HAT": {
+    "label": "کلاه جادوگر",
+    "emoji": "🎩",
+    "category": "CHARACTER_GEAR",
+    "price": 500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "hat",
+      "id": "WIZARD_HAT"
+    },
+    "description": "لوازم شخصیت (کلاه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_BANDANA": {
+    "label": "سربند",
+    "emoji": "🎩",
+    "category": "CHARACTER_GEAR",
+    "price": 300,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "hat",
+      "id": "BANDANA"
+    },
+    "description": "لوازم شخصیت (کلاه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_CROWN": {
+    "label": "تاج",
+    "emoji": "🎩",
+    "category": "CHARACTER_GEAR",
+    "price": 1500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "hat",
+      "id": "CROWN"
+    },
+    "description": "لوازم شخصیت (کلاه). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_WOOD_SWORD": {
+    "label": "شمشیر چوبی",
+    "emoji": "🗡",
+    "category": "CHARACTER_GEAR",
+    "price": 250,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "weapon",
+      "id": "WOOD_SWORD"
+    },
+    "description": "لوازم شخصیت (سلاح). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_IRON_SWORD": {
+    "label": "شمشیر آهنی",
+    "emoji": "🗡",
+    "category": "CHARACTER_GEAR",
+    "price": 900,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "weapon",
+      "id": "IRON_SWORD"
+    },
+    "description": "لوازم شخصیت (سلاح). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_FLAME_SWORD": {
+    "label": "شمشیر شعله",
+    "emoji": "🗡",
+    "category": "CHARACTER_GEAR",
+    "price": 2000,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "weapon",
+      "id": "FLAME_SWORD"
+    },
+    "description": "لوازم شخصیت (سلاح). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_MAGE_STAFF": {
+    "label": "عصای جادو",
+    "emoji": "🗡",
+    "category": "CHARACTER_GEAR",
+    "price": 800,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "weapon",
+      "id": "MAGE_STAFF"
+    },
+    "description": "لوازم شخصیت (سلاح). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_GLASSES": {
+    "label": "عینک",
+    "emoji": "💍",
+    "category": "CHARACTER_GEAR",
+    "price": 300,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "accessory",
+      "id": "GLASSES"
+    },
+    "description": "لوازم شخصیت (اکسسوری). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_HERO_MASK": {
+    "label": "ماسک",
+    "emoji": "💍",
+    "category": "CHARACTER_GEAR",
+    "price": 400,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "accessory",
+      "id": "HERO_MASK"
+    },
+    "description": "لوازم شخصیت (اکسسوری). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
+  },
+  "GEAR_AMULET": {
+    "label": "گردنبند",
+    "emoji": "💍",
+    "category": "CHARACTER_GEAR",
+    "price": 500,
+    "dailyLimit": null,
+    "stackLimit": 1,
+    "usableInBattle": false,
+    "usableOutOfBattle": false,
+    "purchasable": true,
+    "gear": {
+      "slot": "accessory",
+      "id": "AMULET"
+    },
+    "description": "لوازم شخصیت (اکسسوری). بعد از خرید در مینی‌اپ «شخصی‌سازی شخصیت» می‌توانید آن را بپوشید. فقط ظاهر دارد و اثری روی نبرد ندارد."
   }
 }

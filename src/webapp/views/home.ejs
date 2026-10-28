@@ -1,0 +1,32 @@
+<%- include('partials/head', { title }) %>
+<main class="page">
+  <header class="hero">
+    <div class="hero-preview"><canvas id="preview" aria-label="پیش‌نمایش شخصیت"></canvas></div>
+    <h1>⚔️ اریس — مسیر شمشیر</h1>
+    <p id="hello" class="muted">در حال بارگذاری…</p>
+  </header>
+
+  <section id="groupBox" class="card" hidden>
+    <label for="groupSel" class="muted">گروه</label>
+    <select id="groupSel"></select>
+  </section>
+
+  <section class="menu">
+    <button id="btnCustomize" class="menu-item" disabled>
+      <span class="menu-icon">🎭</span>
+      <span class="menu-text"><b>شخصی‌سازی شخصیت</b><small>جنسیت، چهره، مو، سیبیل و لباس‌ها</small></span>
+      <span class="chev">‹</span>
+    </button>
+    <p id="note" class="note" hidden></p>
+  </section>
+
+  <p class="muted foot">برای دریافت لباس و لوازم بیشتر، به فروشگاه ربات سر بزنید.</p>
+</main>
+<div id="toast" class="toast" hidden></div>
+
+<script src="/webapp-static/parts.js"></script>
+<script src="/webapp-static/sprite.js"></script>
+<script src="/webapp-static/common.js"></script>
+<script src="/webapp-static/home.js"></script>
+</body>
+</html>

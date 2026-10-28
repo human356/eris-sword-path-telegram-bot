@@ -7,6 +7,8 @@ const decorativeRotationModel = require('../database/models/decorativeRotationMo
 const weeklyOfferModel = require('../database/models/weeklyOfferModel');
 const coinService = require('./coinService');
 
+const ONE_TIME_CATEGORIES = new Set(['CARD', 'DECORATIVE', 'PROFILE_TEMPLATE', 'CHARACTER_UNLOCK', 'CHARACTER_GEAR']);
+
 function getItemDef(itemKey) {
   return itemsCatalog[itemKey] || null;
 }
@@ -58,6 +60,8 @@ async function listShopCatalog() {
     seen.add(item.key);
     ordered.push(item);
   };
+  // Items flagged "pinFirst" (the character doll) always lead the list.
+  regular.filter((i) => i.pinFirst).forEach(push);
   for (const key of offerKeys) push(regular.find((i) => i.key === key));
   regular.forEach(push);
   decorative.forEach(push);
@@ -91,7 +95,7 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
   // Battle cards (Phase 4) and decorative collectibles (Phase 6) are
   // one-time unlocks (stackLimit 1) — buying one you already own would
   // otherwise just silently waste coins.
-  if (def.category === 'CARD' || def.category === 'DECORATIVE' || def.category === 'PROFILE_TEMPLATE') {
+  if (ONE_TIME_CATEGORIES.has(def.category)) {
     const owned = await inventoryModel.getItemQuantity(telegramId, groupId, itemKey);
     if (owned >= (def.stackLimit || 1)) {
       return { success: false, reason: 'ALREADY_OWNED' };
@@ -141,4 +145,4 @@ async function buyItem(telegramId, groupId, itemKey, quantity = 1) {
   };
 }
 
-module.exports = { listPurchasableItems, listDecorativeShopItems, listShopCatalog, getPriceInfo, getItemDef, buyItem };
+module.exports = { ONE_TIME_CATEGORIES, listPurchasableItems, listDecorativeShopItems, listShopCatalog, getPriceInfo, getItemDef, buyItem };

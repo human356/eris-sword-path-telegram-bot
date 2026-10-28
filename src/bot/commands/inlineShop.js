@@ -1,5 +1,6 @@
 'use strict';
 const C = require('../../config/constants');
+const env = require('../../config/env');
 const shopService = require('../../economy/shopService');
 const imageService = require('../../services/imageService');
 const slots = require('../../config/imageSlots');
@@ -48,10 +49,16 @@ async function onInlineQuery(ctx) {
   const username = await botUsernameOf(ctx.telegram, ctx.botInfo);
   if (!username) return ctx.answerInlineQuery([], { cache_time: 5 }).catch(() => {});
 
-  const catalog = (await shopService.listShopCatalog()).filter((i) => matches(i, parsed.search));
+  const all = (await shopService.listShopCatalog()).filter((i) => matches(i, parsed.search));
+  // Telegram shows at most 50 results per answer: page through the catalog with next_offset
+  // (the old code cut the list at 50 and silently hid the rest of the shop).
+  const pageSize = Math.min(50, C.SHOP_INLINE_MAX_RESULTS || 50);
+  const offset = Math.max(0, parseInt(ctx.inlineQuery.offset, 10) || 0);
+  const catalog = all.slice(offset, offset + pageSize);
+  const nextOffset = offset + pageSize < all.length ? String(offset + pageSize) : '';
   const results = [];
 
-  for (const item of catalog.slice(0, C.SHOP_INLINE_MAX_RESULTS)) {
+  for (const item of catalog) {
     const caption = productCaption(item, item.priceInfo);
     const markup = {
       inline_keyboard: [[{ text: '🛒 خرید در پیوی ربات', url: buyUrl(username, item.key) }]],
@@ -59,14 +66,36 @@ async function onInlineQuery(ctx) {
     const priceLine = item.priceInfo.percent > 0
       ? `🔥 ${item.priceInfo.percent}% تخفیف — ${item.priceInfo.final} سکه`
       : `🪙 ${item.priceInfo.final} سکه`;
+    const title = `${item.emoji || ''} ${item.label}`.trim();
     const fileId = await imageService.getFileId(slots.itemSlot(item.key)).catch(() => null);
+    const hasPicture = !!(fileId || (await imageService.has(slots.itemSlot(item.key)).catch(() => false)));
 
-    if (fileId) {
+    // Photo-type inline results show ONLY the picture in Telegram's list (no title / price text),
+    // so when the server has a public URL every product is an "article" row: the title, price and
+    // description stay visible in the list, the picture is the row's thumbnail, and the sent message
+    // still shows the picture above the text through a link preview.
+    if (env.WEBAPP_URL && hasPicture) {
+      const sig = await imageService.getSignature(slots.itemSlot(item.key)).catch(() => 'x');
+      const img = `${env.WEBAPP_URL}/img/item/${encodeURIComponent(item.key)}.jpg?v=${encodeURIComponent(sig)}`;
+      results.push({
+        type: 'article',
+        id: `shop_${item.key}`.slice(0, 64),
+        title,
+        description: `${priceLine}\n${item.description || ''}`.trim().slice(0, 200),
+        thumbnail_url: img,
+        input_message_content: {
+          message_text: caption,
+          parse_mode: 'HTML',
+          link_preview_options: { url: img, show_above_text: true, prefer_large_media: true },
+        },
+        reply_markup: markup,
+      });
+    } else if (fileId) {
       results.push({
         type: 'photo',
         id: `shop_${item.key}`.slice(0, 64),
         photo_file_id: fileId,
-        title: `${item.emoji || ''} ${item.label}`.trim(),
+        title,
         description: priceLine,
         caption,
         parse_mode: 'HTML',
@@ -76,7 +105,7 @@ async function onInlineQuery(ctx) {
       results.push({
         type: 'article',
         id: `shop_${item.key}`.slice(0, 64),
-        title: `${item.emoji || ''} ${item.label}`.trim(),
+        title,
         description: `${priceLine}\n${item.description || ''}`.trim(),
         input_message_content: { message_text: caption, parse_mode: 'HTML' },
         reply_markup: markup,
@@ -84,7 +113,7 @@ async function onInlineQuery(ctx) {
     }
   }
 
-  await ctx.answerInlineQuery(results, { cache_time: 20, is_personal: false }).catch((err) => {
+  await ctx.answerInlineQuery(results, { cache_time: 20, is_personal: false, next_offset: nextOffset }).catch((err) => {
     console.error('[inline-shop] answerInlineQuery failed:', err.message);
   });
 }

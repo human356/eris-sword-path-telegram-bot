@@ -1,0 +1,31 @@
+<%- include('partials/head', { title }) %>
+<main class="page editor">
+  <div class="topbar">
+    <button id="btnBack" class="ghost" aria-label="بازگشت">›</button>
+    <h2>شخصی‌سازی شخصیت</h2>
+    <span class="grow"></span>
+  </div>
+
+  <section class="stage">
+    <canvas id="preview" aria-label="پیش‌نمایش شخصیت"></canvas>
+    <div class="stage-actions">
+      <button id="btnReset" class="ghost small">↺ بازگردانی</button>
+      <button id="btnRandom" class="ghost small">🎲 تصادفی</button>
+    </div>
+  </section>
+
+  <nav id="tabs" class="tabs" role="tablist"></nav>
+  <section id="panel" class="panel"></section>
+
+  <div class="savebar">
+    <button id="btnSave" class="primary">💾 ذخیره شخصیت</button>
+  </div>
+</main>
+<div id="toast" class="toast" hidden></div>
+
+<script src="/webapp-static/parts.js"></script>
+<script src="/webapp-static/sprite.js"></script>
+<script src="/webapp-static/common.js"></script>
+<script src="/webapp-static/editor.js"></script>
+</body>
+</html>

@@ -22,12 +22,14 @@ const { lobbyKeyboard, oneVsOneMoveKeyboard, ffaMoveKeyboard } = require('../bot
 // (resolvePveRound's "🏁" branch + finishMultiplayerBattle).
 const { sendAutoDelete, sendPersist } = require('../utils/messageCleanup');
 const { threadExtra } = require('../utils/topic');
+const resultCardService = require('../services/battleResultCardService');
 
 const roundTimers = new Map();
 const recruitTimers = new Map();
 // battleId -> { [telegramId]: { move, target: telegramId|null, submittedAt } }
 const pendingMoves = new Map();
 const pendingItems = new Map(); // battleId -> { [telegramId]: string[] }
+const lastReports = new Map(); // battleId -> message_id of the last round report (the result picture replies to it)
 const pveSupplies = new Map(); // battleId -> { potions, pills } (bot's virtual stock)
 
 function clearTimer(map, id) {
@@ -78,6 +80,22 @@ function isLateRound(battle) {
 }
 
 function createMultiplayerBattleManager(bot) {
+  // Round report (exempt from auto-delete); remembers its message so the result picture can reply to it.
+  async function sendReport(battle, chatId, text) {
+    const sent = await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => null);
+    if (sent && sent.message_id) lastReports.set(battle.id, sent.message_id);
+    return sent;
+  }
+
+  /** Sends the result picture as a reply to the last report; falls back to the plain text result. */
+  async function sendResult(battle, chatId, card, caption, fallbackText) {
+    const sent = await resultCardService.sendResultCard(bot.telegram, chatId,
+      { groupId: battle.group_id, threadId: battle.thread_id, ...card },
+      { replyToMessageId: lastReports.get(battle.id), caption });
+    lastReports.delete(battle.id);
+    if (!sent) await sendPersist(bot.telegram, chatId, fallbackText, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+  }
+
   // ============================== LOBBY (FFA / TEAM) ==============================
 
   async function startRecruiting(type, groupId, chatId, initiatorUser, threadId = 0) {
@@ -460,7 +478,7 @@ function createMultiplayerBattleManager(bot) {
       (log.length ? `📜 ${log.join('\n')}\n\n` : '') +
       `❤️ سلامتی: شما ${newHumanHp} | اریس ${newBotHp}\n⚡ استقامت: شما ${newHumanStamina} | اریس ${newBotStamina}`;
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+    await sendReport(battle, chatId, text);
 
     await mpModel.updateParticipants([
       { id: human.id, patch: { hp: newHumanHp, stamina: newHumanStamina, afk_streak: newHumanAfk, locked_move: humanMove || null } },
@@ -477,11 +495,26 @@ function createMultiplayerBattleManager(bot) {
       const stats = await playerStatsModel.getPlayerStats(human.telegram_id, battle.group_id);
       const xpResult = await xpService.grantXp(human.telegram_id, battle.group_id, stats, xp);
       await coinService.grantCoins(human.telegram_id, battle.group_id, xpResult.stats, coins, 'PVE_TRAINING');
-      // Persist — final battle result (exempt category).
-      await sendPersist(bot.telegram, chatId,
-        `🏁 <b>نبرد تمرینی تمام شد</b>\n\n${humanWon ? '🎉 شما بردید!' : '💀 اریس این بار برنده شد.'}\n\n⭐ +${xp} XP\n🪙 +${coins} سکه`,
-        { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }
-      ).catch(() => {});
+      // Persist — final battle result (exempt category): picture replying to the last report.
+      const sg = resultCardService.signed;
+      const playerSide = {
+        role: humanWon ? 'winner' : 'loser',
+        members: [{
+          telegramId: human.telegram_id, name: human.display_name, level: stats.level, kind: 'player',
+          hp: newHumanHp, hpMax: stats.max_hp, lines: [`تجربه: ${sg(xp)}`, `سکه: ${sg(coins)}`],
+        }],
+      };
+      const erisSide = {
+        role: humanWon ? 'loser' : 'winner',
+        members: [{ name: 'اریس', kind: 'eris', hp: newBotHp, hpMax: bot_.max_hp, lines: [humanWon ? 'این بار شکست خوردم…' : 'هنوز خیلی مانده تا مرا شکست بدهی!'] }],
+      };
+      const pveHead = `🏁 <b>نبرد تمرینی تمام شد</b>\n\n${humanWon ? '🎉 شما بردید!' : '💀 اریس این بار برنده شد.'}`;
+      await sendResult(battle, chatId, {
+        title: humanWon ? `${human.display_name} اریس را شکست داد` : 'اریس پیروز شد',
+        subtitle: 'نبرد تمرینی با اریس',
+        eris: null,
+        sides: humanWon ? [playerSide, erisSide] : [erisSide, playerSide],
+      }, pveHead, `${pveHead}\n\n⭐ +${xp} XP\n🪙 +${coins} سکه`);
       pveSupplies.delete(battle.id);
       return;
     }
@@ -528,7 +561,7 @@ function createMultiplayerBattleManager(bot) {
       (newHpA <= 0 ? `\n💀 ${escapeHtml(champA.display_name)} حذف شد!` : '') +
       (newHpB <= 0 ? `\n💀 ${escapeHtml(champB.display_name)} حذف شد!` : '');
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+    await sendReport(battle, chatId, text);
 
     const allParticipants = await mpModel.getParticipants(battle.id);
     const teamAAlive = allParticipants.filter((p) => p.team === 'A' && !p.is_eliminated);
@@ -614,7 +647,7 @@ function createMultiplayerBattleManager(bot) {
 
     const text = `📋 <b>گزارش راند ${battle.round_number}</b>\n\n${statusLines}` + (logLines.length ? `\n\n📜 ${logLines.join('\n')}` : '');
     // Persist — round report (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+    await sendReport(battle, chatId, text);
 
     const stillAlive = await mpModel.getParticipants(battle.id);
     const remaining = stillAlive.filter((p) => !p.is_eliminated);
@@ -637,6 +670,7 @@ function createMultiplayerBattleManager(bot) {
       ? `🎉 برنده: ${winners.map((w) => escapeHtml(w.display_name)).join('، ')}\n\n`
       : `⚔️ نبرد بدون برندهٔ مشخص به پایان رسید (سقف راند).\n\n`;
 
+    const cardMembers = { winner: [], loser: [] };
     for (const p of allParticipants) {
       const stats = await playerStatsModel.getPlayerStats(p.telegram_id, battle.group_id);
       if (!stats) continue;
@@ -646,10 +680,25 @@ function createMultiplayerBattleManager(bot) {
       const xpResult = await xpService.grantXp(p.telegram_id, battle.group_id, stats, xp);
       await coinService.grantCoins(p.telegram_id, battle.group_id, xpResult.stats, coins, won ? 'MULTIPLAYER_WIN' : 'MULTIPLAYER_LOSS');
       text += `${won ? '🎉' : '💀'} ${escapeHtml(p.display_name)}: +${xp} XP، +${coins} سکه\n`;
+      cardMembers[won ? 'winner' : 'loser'].push({
+        telegramId: p.telegram_id, name: p.display_name, level: stats.level, kind: 'player',
+        hp: Math.max(0, p.hp || 0), hpMax: stats.max_hp, lines: [`تجربه: +${xp}`, `سکه: +${coins}`],
+      });
     }
 
-    // Persist — final battle result (exempt category).
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+    // Persist — final battle result (exempt category). With a clear winner it is a picture replying to
+    // the last round report; fights without a winner keep the text.
+    if (winners && cardMembers.winner.length && cardMembers.loser.length) {
+      await sendResult(battle, chatId, {
+        title: `${cardMembers.winner.map((m) => m.name).join('، ')} پیروز شد`,
+        subtitle: `نبرد ${labelFa}`,
+        eris: 'win',
+        sides: [{ role: 'winner', members: cardMembers.winner }, { role: 'loser', members: cardMembers.loser }],
+      }, `🏆 <b>نبرد ${labelFa} تمام شد</b>\n\n🎉 برنده: ${winners.map((w) => escapeHtml(w.display_name)).join('، ')}`, text);
+    } else {
+      await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+      lastReports.delete(battle.id);
+    }
     clearRoundBookkeeping(battle.id);
   }
 

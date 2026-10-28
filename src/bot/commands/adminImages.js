@@ -57,12 +57,13 @@ function mainMenu() {
       [Markup.button.callback('🎁 عکس محصولات و آیتم‌ها', 'adm:list:item:0')],
       [Markup.button.callback('🆙 عکس ارتقای لول', 'adm:levels')],
       [Markup.button.callback('🏪 بنر فروشگاه هفتگی', 'adm:slot:shop:banner')],
+      [Markup.button.callback('🏆 عکس‌های نتیجهٔ نبرد (اریس برنده/بازنده، پس‌زمینه)', 'adm:list:result:0')],
     ]),
   };
 }
 
 async function slotList(kind, page) {
-  const all = kind === 'tpl' ? slots.listTemplateSlots() : slots.listItemSlots();
+  const all = kind === 'tpl' ? slots.listTemplateSlots() : kind === 'result' ? slots.listResultSlots() : slots.listItemSlots();
   const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
   const p = Math.min(Math.max(0, page), pages - 1);
   const chunk = all.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE);
@@ -79,7 +80,7 @@ async function slotList(kind, page) {
   rows.push(nav);
   rows.push([Markup.button.callback('🔙 منوی اصلی', 'adm:home')]);
 
-  const title = kind === 'tpl' ? '🖼 قالب‌های پروفایل' : '🎁 عکس محصولات و آیتم‌ها';
+  const title = kind === 'tpl' ? '🖼 قالب‌های پروفایل' : kind === 'result' ? '🏆 عکس‌های نتیجهٔ نبرد' : '🎁 عکس محصولات و آیتم‌ها';
   return { text: `<b>${title}</b>\n✅ = عکس دارد  ⬜️ = ندارد\nیکی را انتخاب کنید:`, keyboard: Markup.inlineKeyboard(rows) };
 }
 

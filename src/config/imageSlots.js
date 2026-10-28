@@ -22,7 +22,12 @@ const itemsCatalog = require('./items.json');
 
 const ASSETS_DIR = path.join(__dirname, '..', '..', 'assets');
 const EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp'];
-const KIND_DIRS = { tpl: 'templates', item: 'items', level: 'levels', shop: 'shop' };
+const KIND_DIRS = { tpl: 'templates', item: 'items', level: 'levels', shop: 'shop', result: 'results' };
+
+// Battle-result card pictures: Eris winning / losing and the card background (docs/BATTLE_RESULT_PROMPTS.md).
+const RESULT_NAMES = ['eris_win', 'eris_lose', 'bg'];
+const RESULT_LABELS = { eris_win: '😈 اریس برنده (وقتی اریس می‌برد)', eris_lose: '😭 اریس بازنده (وقتی اریس می‌بازد)', bg: '🖼 پس‌زمینهٔ کارت نتیجهٔ نبرد' };
+const resultSlot = (name) => `result:${name}`;
 
 const DEFAULT_TEMPLATE_KEY = 'DEFAULT';
 const SHOP_BANNER_SLOT = 'shop:banner';
@@ -50,6 +55,7 @@ function isValidSlotKey(slotKey) {
   if (p.kind === 'item') return !!itemsCatalog[p.name];
   if (p.kind === 'level') return p.name === 'default' || /^[1-9]\d{0,2}$/.test(p.name);
   if (p.kind === 'shop') return p.name === 'banner';
+  if (p.kind === 'result') return RESULT_NAMES.includes(p.name);
   return false;
 }
 
@@ -89,7 +95,7 @@ function listAssetSlotKeys() {
         name = Object.keys(itemsCatalog).find((k) => k.toLowerCase() === base.toLowerCase()) || base;
       } else if (kind === 'level') {
         name = base.toLowerCase() === 'default' ? 'default' : base;
-      } else if (kind === 'shop') {
+      } else if (kind === 'shop' || kind === 'result') {
         name = base.toLowerCase();
       }
       const slotKey = `${kind}:${name}`;
@@ -97,6 +103,10 @@ function listAssetSlotKeys() {
     }
   }
   return Array.from(new Set(keys));
+}
+
+function listResultSlots() {
+  return RESULT_NAMES.map((n) => ({ key: resultSlot(n), label: RESULT_LABELS[n] }));
 }
 
 function listTemplateSlots() {
@@ -132,6 +142,7 @@ function slotLabel(slotKey) {
   }
   if (p.kind === 'level') return p.name === 'default' ? '🆙 عکس پیش‌فرض ارتقای لول' : `🆙 عکس لول ${p.name}`;
   if (p.kind === 'shop') return '🏪 بنر فروشگاه هفتگی';
+  if (p.kind === 'result') return RESULT_LABELS[p.name] || slotKey;
   return slotKey;
 }
 
@@ -143,6 +154,8 @@ module.exports = {
   templateSlot,
   itemSlot,
   levelSlot,
+  resultSlot,
+  listResultSlots,
   parseSlotKey,
   isValidSlotKey,
   assetCandidates,

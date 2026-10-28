@@ -20,7 +20,7 @@ const FEATURES = {
 const FEATURE_KEYS = Object.keys(FEATURES);
 
 const COMMAND_MAP = {
-  start: 'PROFILE', profile: 'PROFILE', panel: 'PROFILE', rank: 'PROFILE', stats: 'PROFILE',
+  start: 'PROFILE', profile: 'PROFILE', character: 'PROFILE', shakhsiat: 'PROFILE', panel: 'PROFILE', rank: 'PROFILE', stats: 'PROFILE',
   fight: 'DUEL',
   trainbattle: 'BATTLES', pve: 'BATTLES', teambattle: 'BATTLES', freeforall: 'BATTLES', ffa: 'BATTLES',
   train: 'TRAINING',
@@ -35,6 +35,7 @@ const HEARS_MAP = {
   'اریس': 'PANEL',
   'پنل اریس': 'PANEL',
   'پروفایل اریس': 'PROFILE',
+  'شخصیت': 'PROFILE',
 };
 
 // Order matters: first matching prefix wins.
@@ -45,6 +46,8 @@ const CALLBACK_PREFIXES = [
   ['menu:training', 'TRAINING'],
   ['training:', 'TRAINING'],
   ['menu:profile', 'PROFILE'],
+  ['menu:character', 'PROFILE'],
+  ['view:', 'PROFILE'],
   ['menu:ranking', 'LEADERBOARD'],
   ['menu:daily', 'DAILY'],
   ['daily:', 'DAILY'],

@@ -21,6 +21,8 @@ module.exports = {
   SUPER_ADMIN_IDS: parseAdminIds(process.env.SUPER_ADMIN_IDS),
   // Optional: only used as a fallback when Telegram's getMe hasn't filled ctx.botInfo yet.
   BOT_USERNAME: (process.env.BOT_USERNAME || '').replace(/^@/, ''),
+  // Public HTTPS base URL of this server (e.g. https://eris.example.com) — hosts the Mini App and shop thumbnails.
+  WEBAPP_URL: (process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, ''),
   DATABASE_SSL: process.env.DATABASE_SSL === 'true',
   NODE_ENV: process.env.NODE_ENV || 'development',
 };

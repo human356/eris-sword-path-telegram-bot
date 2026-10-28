@@ -32,6 +32,7 @@ const { moveKeyboard, challengeKeyboard } = require('../bot/keyboards');
 // (finalizeBattle) — see src/utils/messageCleanup.js for the full rationale.
 const { sendAutoDelete, sendPersist } = require('../utils/messageCleanup');
 const { threadExtra } = require('../utils/topic');
+const resultCardService = require('../services/battleResultCardService');
 
 // In-memory timers, keyed by battle id. A single bot process owns these;
 // all authoritative state still lives in Postgres (spec §28, §32).
@@ -42,6 +43,8 @@ const challengeTimers = new Map();
 const pendingMoves = new Map();
 // Items consumed so far THIS round, kept only for the round report text —
 // the actual stat effect is already applied live (see useItem).
+// battleId -> message_id of the last round report (the result picture replies to it)
+const lastReports = new Map();
 const pendingItems = new Map(); // battleId -> { [telegramId]: string[] }
 
 function clearTimer(map, battleId) {
@@ -375,7 +378,8 @@ function createBattleManager(bot) {
       `⚡ استقامت باقی‌مانده:\n${escapeHtml(challenger.display_name)}: ${newChallengerStamina} | ${escapeHtml(opponent.display_name)}: ${newOpponentStamina}`;
 
     // Persist — this IS "گزارش هر راند مبارزه", one of the 3 exempt categories.
-    await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => {});
+    const sentReport = await sendPersist(bot.telegram, chatId, text, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) }).catch(() => null);
+    if (sentReport && sentReport.message_id) lastReports.set(battle.id, sentReport.message_id);
   }
 
   async function resolveRound(battle, moves) {
@@ -637,6 +641,7 @@ function createBattleManager(bot) {
     await groupModel.incrementGroupCounters(battle.group_id, { duels: 1 });
 
     let resultText = `🏆 <b>دوئل به پایان رسید</b>\n\n`;
+    let cardSent = false; // the victory picture replaces the long text result when it can be produced
 
     if (isDraw) {
       resultText += `⚔️ دوئل بین ${escapeHtml(challenger.display_name)} و ${escapeHtml(opponent.display_name)} مساوی شد!\n\n`;
@@ -726,10 +731,38 @@ function createBattleManager(bot) {
       if (rewardScale < 1) {
         resultText += `\n\n<i>(پاداش‌ها کاهش یافتند — شما دو نفر اخیراً بیش از حد با یکدیگر مبارزه کرده‌اید.)</i>`;
       }
+
+      // Victory picture: replies to the last round report; shows both fighters' status and rewards.
+      const sg = resultCardService.signed;
+      const caption =
+        `⚔️ <b>${escapeHtml(winnerUser.display_name)}</b> ${forfeited ? 'برنده شد (حریف تسلیم شد)' : `، ${escapeHtml(loserUser.display_name)} را شکست داد!`}\n\n` +
+        `Eris: "${escapeHtml(erisVoice.say(streakResult.currentStreak >= 3 ? 'streak' : 'duel_win'))}"` +
+        (rewardScale < 1 ? `\n\n<i>(پاداش‌ها کاهش یافتند — اخیراً بیش از حد با هم مبارزه کرده‌اید.)</i>` : '');
+      const sent = await resultCardService.sendResultCard(bot.telegram, chatId, {
+        groupId: battle.group_id,
+        threadId: battle.thread_id,
+        title: `${winnerUser.display_name} پیروز شد`,
+        subtitle: forfeited ? 'حریف به‌دلیل عدم حضور تسلیم شد' : `دوئل در راند ${battle.round_number} به پایان رسید`,
+        eris: 'win',
+        sides: [
+          { role: 'winner', members: [{
+            telegramId: winnerUser.telegram_id, name: winnerUser.display_name, level: winnerStats.level, kind: 'player',
+            hp: winnerHp, hpMax: winnerStats.max_hp,
+            lines: [`تجربه: ${sg(xpGain)}`, `سکه: ${sg(coinGain)}`, `امتیاز: ${sg(scaledRatingGain)}`, `احترام اریس: ${sg(respectGain)}`, `پیروزی متوالی: ${streakResult.currentStreak}`],
+          }] },
+          { role: 'loser', members: [{
+            telegramId: loserUser.telegram_id, name: loserUser.display_name, level: loserStats.level, kind: 'player',
+            hp: 0, hpMax: loserStats.max_hp,
+            lines: [`تجربه: ${sg(loserXp2Gain)}`, `سکه: ${sg(loserCoinGain)}`, `امتیاز: ${sg(-scaledRatingLoss)}`],
+          }] },
+        ],
+      }, { replyToMessageId: lastReports.get(battle.id), caption });
+      cardSent = !!sent;
     }
 
     // Persist — this IS "گزارش نهایی نتایج نبردها", one of the 3 exempt categories.
-    await sendPersist(bot.telegram, chatId, resultText, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) });
+    if (!cardSent) await sendPersist(bot.telegram, chatId, resultText, { parse_mode: 'HTML', ...threadExtra(battle.thread_id) });
+    lastReports.delete(battle.id);
   }
 
   async function sweepExpiredChallenges() {

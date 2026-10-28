@@ -28,8 +28,11 @@ function buyUrl(username, itemKey, groupId) {
  * HTML caption of a product (shop post / inline result / private purchase screen).
  * `info` = shopService.getPriceInfo(): { base, final, percent }.
  */
+const CAPTION_MAX = 1000; // Telegram: photo captions are capped at 1024 chars (HTML tags don't count, but stay safe)
+
 function productCaption(item, info, { owned = false } = {}) {
   const lines = [`${item.emoji || '📦'} <b>${escapeHtml(item.label)}</b>`];
+  const descIndex = lines.length;
   if (item.description) lines.push(escapeHtml(item.description));
   lines.push('');
   if (info.percent > 0) {
@@ -39,9 +42,19 @@ function productCaption(item, info, { owned = false } = {}) {
     lines.push(`🪙 قیمت: <b>${num(info.final)}</b> سکه`);
   }
   if (item.dailyLimit) lines.push(`📅 سقف خرید روزانه: ${item.dailyLimit}`);
-  if (['CARD', 'DECORATIVE', 'PROFILE_TEMPLATE'].includes(item.category)) lines.push('☝️ یک‌بار قابل خرید');
+  if (['CARD', 'DECORATIVE', 'PROFILE_TEMPLATE', 'CHARACTER_UNLOCK', 'CHARACTER_GEAR'].includes(item.category)) lines.push('☝️ یک‌بار قابل خرید');
   if (owned) lines.push('✅ این مورد را از قبل دارید');
-  return lines.join('\n');
+  let text = lines.join('\n');
+  // A caption over the limit makes Telegram reject the photo (the old "text disappears" bug): trim the description.
+  if (item.description && text.length > CAPTION_MAX) {
+    const over = text.length - CAPTION_MAX + 1;
+    const keep = Math.max(0, escapeHtml(item.description).length - over);
+    let desc = escapeHtml(item.description).slice(0, keep).replace(/&[a-z#0-9]*$/i, '');
+    desc = keep > 0 ? `${desc.trimEnd()}…` : '';
+    lines[descIndex] = desc;
+    text = lines.join('\n');
+  }
+  return text;
 }
 
 module.exports = { botUsernameOf, buyUrl, productCaption };

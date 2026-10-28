@@ -51,6 +51,12 @@ app.get('/', (req, res) => {
     message: 'ErisBot server is running'
   });
 });
+// Character Mini App (EJS pages + Telegram-authenticated API). A missing `ejs` package must not take the bot down.
+try {
+  require('./webapp/router').mount(app);
+} catch (err) {
+  console.error('[webapp] Mini App disabled:', err.message, '— run `npm install` (needs the "ejs" package).');
+}
 const server = app.listen(PORT, () => {
   console.log(`🌐 Health server running on port ${PORT}`);
 });
@@ -72,6 +78,7 @@ require('./bot/commands/shop').register(bot);
 require('./bot/commands/inventory').register(bot);
 require('./bot/commands/profileManage').register(bot);
 require('./bot/commands/privateShop').register(bot);
+require('./bot/commands/character').register(bot);
 require('./bot/commands/inlineShop').register(bot);
 require('./bot/commands/shopTopic').register(bot);
 require('./bot/commands/help').register(bot);
