@@ -18,7 +18,7 @@ const NOTICE_COOLDOWN_MS = 5 * 1000;
 const NOTICE_LIFETIME_MS = 30 * 1000;
 const lastNotice = new Map(); // telegramId -> timestamp
 
-const TRIGGER_WORDS = new Set(['اریس', 'پنل اریس', 'پروفایل اریس', 'شخصیت']);
+const TRIGGER_WORDS = new Set(['پنل اریس', 'پروفایل اریس', 'شخصیت']);
 const SKIP_CALLBACK_PREFIXES = ['battle:', 'mp:'];
 
 function isBotInteraction(ctx) {
