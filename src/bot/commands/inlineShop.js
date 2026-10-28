@@ -1,9 +1,6 @@
 'use strict';
 const C = require('../../config/constants');
-const env = require('../../config/env');
 const shopService = require('../../economy/shopService');
-const imageService = require('../../services/imageService');
-const slots = require('../../config/imageSlots');
 const { botUsernameOf, buyUrl, productCaption } = require('../../utils/shopText');
 
 /**
@@ -67,52 +64,15 @@ async function onInlineQuery(ctx) {
       ? `🔥 ${item.priceInfo.percent}% تخفیف — ${item.priceInfo.final} سکه`
       : `🪙 ${item.priceInfo.final} سکه`;
     const title = `${item.emoji || ''} ${item.label}`.trim();
-    const fileId = await imageService.getFileId(slots.itemSlot(item.key)).catch(() => null);
-    const hasPicture = !!(fileId || (await imageService.has(slots.itemSlot(item.key)).catch(() => false)));
-
-    // Photo-type inline results show ONLY the picture in Telegram's list (no title / price text),
-    // so when the server has a public URL every product is an "article" row: the title, price and
-    // description stay visible in the list, the picture is the row's thumbnail, and the sent message
-    // still shows the picture above the text through a link preview.
-    if (env.WEBAPP_URL && hasPicture) {
-      const sig = await imageService.getSignature(slots.itemSlot(item.key)).catch(() => 'x');
-      const base = `${env.WEBAPP_URL}/img/item/${encodeURIComponent(item.key)}.jpg?v=${encodeURIComponent(sig)}`;
-      const img = `${base}&s=800`;
-      const thumb = `${base}&s=160`;
-      results.push({
-        type: 'article',
-        id: `shop_${item.key}`.slice(0, 64),
-        title,
-        description: `${priceLine}\n${item.description || ''}`.trim().slice(0, 200),
-        thumbnail_url: thumb,
-        input_message_content: {
-          message_text: caption,
-          parse_mode: 'HTML',
-          link_preview_options: { url: img, show_above_text: true, prefer_large_media: true },
-        },
-        reply_markup: markup,
-      });
-    } else if (fileId) {
-      results.push({
-        type: 'photo',
-        id: `shop_${item.key}`.slice(0, 64),
-        photo_file_id: fileId,
-        title,
-        description: priceLine,
-        caption,
-        parse_mode: 'HTML',
-        reply_markup: markup,
-      });
-    } else {
-      results.push({
-        type: 'article',
-        id: `shop_${item.key}`.slice(0, 64),
-        title,
-        description: `${priceLine}\n${item.description || ''}`.trim(),
-        input_message_content: { message_text: caption, parse_mode: 'HTML' },
-        reply_markup: markup,
-      });
-    }
+    // Text-only rows on purpose: no pictures are loaded in the inline shop (fast and never fails).
+    results.push({
+      type: 'article',
+      id: `shop_${item.key}`.slice(0, 64),
+      title,
+      description: `${priceLine}\n${item.description || ''}`.trim().slice(0, 200),
+      input_message_content: { message_text: caption, parse_mode: 'HTML' },
+      reply_markup: markup,
+    });
   }
 
   try {
